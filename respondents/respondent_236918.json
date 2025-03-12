@@ -287,6 +287,10 @@
       "full_question_text": "It appears that the state name is missing from the address you provided. In what state is your address for voting? 21",
       "possible_answers": [
         {
+          "code": "-1",
+          "text": "Inapplicable"
+        },
+        {
           "code": "1",
           "text": "Inapplicable"
         },
@@ -495,7 +499,7 @@
           "text": "Wyoming"
         }
       ],
-      "respondent_answer": "-1"
+      "respondent_answer": "Inapplicable"
     },
     {
       "variable_code": "V241025",
@@ -11051,6 +11055,10 @@
       "full_question_text": "In what state, country, or territory did you mainly grow up? ",
       "possible_answers": [
         {
+          "code": "-1",
+          "text": "Inapplicable"
+        },
+        {
           "code": "9",
           "text": "Refused"
         },
@@ -11279,7 +11287,7 @@
           "text": "Another country"
         }
       ],
-      "respondent_answer": "-1"
+      "respondent_answer": "Inapplicable"
     },
     {
       "variable_code": "V241530",
