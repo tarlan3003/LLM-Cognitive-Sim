@@ -11,6 +11,7 @@ import json
 import torch
 import numpy as np
 import pandas as pd
+import random
 from torch.utils.data import Dataset, DataLoader
 from transformers import AutoTokenizer
 from typing import Dict, List, Optional, Union, Tuple
@@ -163,6 +164,102 @@ class ProspectTheoryDataset(Dataset):
             result['target'] = torch.tensor(item['target'], dtype=torch.long)
         
         return result
+
+    @staticmethod
+    def create_prospect_theory_dataset(
+        output_path: str,
+        num_examples: int = 100,
+        bias_names: List[str] = None,
+        system_probs: List[float] = None
+    ) -> List[Dict]:
+        """
+        Create a dummy Prospect Theory dataset for training.
+        
+        Args:
+            output_path: Path to save the dataset
+            num_examples: Number of examples to generate
+            bias_names: List of bias names to include
+            system_probs: Probabilities of System 1 vs System 2 thinking
+            
+        Returns:
+            List of generated examples
+        """
+        if bias_names is None:
+            bias_names = ["anchoring", "framing", "availability", "confirmation_bias", "loss_aversion"]
+            
+        if system_probs is None:
+            system_probs = [0.7, 0.3]  # Default: 70% System 1, 30% System 2
+            
+        # Scenarios for different biases
+        scenarios = {
+            "anchoring": [
+                "When asked about the price of a new car, the respondent was first shown a luxury model priced at $80,000.",
+                "The survey first mentioned that the average American household spends $5,000 per year on healthcare.",
+                "Before asking about inflation expectations, the interviewer mentioned that inflation was 2% last year."
+            ],
+            "framing": [
+                "The policy was described as 'saving 200 lives' rather than 'letting 800 people die'.",
+                "The tax cut was framed as 'giving money back to taxpayers' rather than 'reducing government revenue'.",
+                "The candidate's position was described as 'supporting traditional values' rather than 'opposing progressive reforms'."
+            ],
+            "availability": [
+                "The respondent had recently seen news coverage of a violent crime in their neighborhood.",
+                "After a major hurricane, the respondent was asked about climate change concerns.",
+                "Having just read about a vaccine side effect, the respondent was asked about vaccine safety."
+            ],
+            "confirmation_bias": [
+                "The respondent, a lifelong Republican, was shown information about economic growth under Republican presidents.",
+                "A strong environmentalist was presented with data supporting renewable energy benefits.",
+                "A gun rights advocate was shown statistics about defensive gun use."
+            ],
+            "loss_aversion": [
+                "The respondent was told they would lose existing benefits rather than gain new ones.",
+                "The policy was described as increasing costs rather than reducing savings.",
+                "The investment option was framed in terms of potential losses rather than potential gains."
+            ]
+        }
+        
+        # Generate examples
+        data = []
+        for i in range(num_examples):
+            # Randomly select biases present in this example
+            present_biases = random.sample(bias_names, k=random.randint(1, 3))
+            
+            # Generate text from scenarios
+            text_parts = []
+            for bias in present_biases:
+                if bias in scenarios:
+                    text_parts.append(random.choice(scenarios[bias]))
+            
+            # Combine text parts
+            text = " ".join(text_parts)
+            
+            # Add context and question
+            text += "\n\nQ: How would this framing affect the respondent's decision?"
+            
+            # Create bias labels
+            bias_labels = {bias: 1 if bias in present_biases else 0 for bias in bias_names}
+            
+            # Determine system (1 = System 1, 0 = System 2)
+            system_label = 0 if random.random() < system_probs[1] else 1
+            
+            # Create example
+            example = {
+                "text": text,
+                "bias_labels": bias_labels,
+                "system_label": system_label
+            }
+            
+            data.append(example)
+        
+        # Save to file
+        os.makedirs(os.path.dirname(output_path), exist_ok=True)
+        with open(output_path, 'w') as f:
+            json.dump(data, f, indent=2)
+        
+        print(f"Created Prospect Theory dataset with {len(data)} examples at {output_path}")
+        
+        return data
 
 
 class ANESDataset(Dataset):
@@ -462,36 +559,19 @@ def get_dataloaders(
 
 
 if __name__ == "__main__":
-    # Example usage with paths from the original notebook
-    from transformers import AutoTokenizer
+    # Example usage
+    import os
+    from transformers import RobertaTokenizer
     
-    # Create directories
+    # Create dummy dataset
     os.makedirs("data/prospect_theory", exist_ok=True)
-    os.makedirs("data/anes", exist_ok=True)
-    
-    # Convert ANES data from original JSON files
-    # Assuming the original JSON files are in the same location as in the notebook
-    json_folder = "/home/ubuntu/upload"  # Update this to match your actual path
-    output_path = "data/anes/anes_dataset.json"
-    
-    convert_anes_to_dataset(
-        json_folder=json_folder,
-        output_path=output_path,
-        target_variable="V241049",  # WHO WOULD R VOTE FOR: HARRIS VS TRUMP
-        include_classes=["Donald Trump", "Kamala Harris"]
+    ProspectTheoryDataset.create_prospect_theory_dataset(
+        "data/prospect_theory/dummy.json", num_examples=10
     )
     
-    # Load tokenizer
-    tokenizer = AutoTokenizer.from_pretrained("roberta-base")
+    # Load tokenizer and dataset
+    tokenizer = RobertaTokenizer.from_pretrained("roberta-base")
+    dataset = ProspectTheoryDataset("data/prospect_theory/dummy.json", tokenizer)
     
-    # Load dataset
-    anes_dataset = ProspectTheoryDataset(output_path, tokenizer, is_anes=True)
-    
-    # Print example
-    print("Example item:")
-    item = anes_dataset[0]
-    for k, v in item.items():
-        if isinstance(v, torch.Tensor):
-            print(f"{k}: Tensor of shape {v.shape}")
-        else:
-            print(f"{k}: {v}")
+    # Print first example
+    print(dataset[0])

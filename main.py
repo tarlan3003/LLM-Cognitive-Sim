@@ -18,12 +18,12 @@ from typing import Dict, List, Tuple, Optional, Union
 from src.dataset import ProspectTheoryDataset, convert_anes_to_dataset
 from src.llm_extractor import HiddenLayerExtractor
 from src.bias_representer import CognitiveBiasRepresenter
-from anes_classifier import (
+from src.anes_classifier import (
     ProspectTheoryANESClassifier, 
     train_anes_classifier, 
     evaluate_anes_classifier
 )
-from utils import (
+from src.utils import (
     plot_training_curves,
     plot_bias_scores_by_class,
     plot_system_weights_by_class,
