@@ -80,10 +80,10 @@ class ProspectTheoryANESClassifier(nn.Module):
         """
         super().__init__()
         # Input: anes_features + bias_scores + weighted_system_llm_rep
-        total_input_dim = anes_feature_dim + num_biases + llm_hidden_dim 
+        self.total_input_dim = anes_feature_dim + num_biases + llm_hidden_dim 
         
         self.combiner = nn.Sequential(
-            nn.Linear(total_input_dim, combined_hidden_dim),
+            nn.Linear(self.total_input_dim, combined_hidden_dim),
             nn.ReLU(),
             nn.Dropout(0.3),
             nn.Linear(combined_hidden_dim, combined_hidden_dim // 2),
@@ -92,7 +92,7 @@ class ProspectTheoryANESClassifier(nn.Module):
         )
         self.classifier = nn.Linear(combined_hidden_dim // 2, num_classes)
         
-        print(f"Initialized ProspectTheoryANESClassifier: {total_input_dim} input features, {num_classes} classes")
+        print(f"Initialized ProspectTheoryANESClassifier: {self.total_input_dim} input features, {num_classes} classes")
 
     def forward(
         self, 
@@ -111,10 +111,56 @@ class ProspectTheoryANESClassifier(nn.Module):
         Returns:
             Logits [batch_size, num_classes]
         """
+        # Debug shape information
+        batch_size = anes_features.shape[0]
+        anes_dim = anes_features.shape[1] if len(anes_features.shape) > 1 else 1
+        bias_dim = bias_scores.shape[1] if len(bias_scores.shape) > 1 else 1
+        system_dim = weighted_system_rep.shape[1] if len(weighted_system_rep.shape) > 1 else 1
+        
+        # Ensure anes_features has correct shape
+        if len(anes_features.shape) == 1:
+            anes_features = anes_features.unsqueeze(1)
+            
+        # Ensure bias_scores has correct shape
+        if len(bias_scores.shape) == 1:
+            bias_scores = bias_scores.unsqueeze(1)
+            
+        # Ensure weighted_system_rep has correct shape
+        if len(weighted_system_rep.shape) == 1:
+            weighted_system_rep = weighted_system_rep.unsqueeze(1)
+        
         # Concatenate all features
         combined_features = torch.cat([anes_features, bias_scores, weighted_system_rep], dim=1)
         
-        hidden = self.combiner(combined_features)
+        # Check if dimensions match
+        actual_dim = combined_features.shape[1]
+        if actual_dim != self.total_input_dim:
+            print(f"WARNING: Input dimension mismatch. Expected {self.total_input_dim}, got {actual_dim}")
+            print(f"ANES features: {anes_features.shape}, Bias scores: {bias_scores.shape}, System rep: {weighted_system_rep.shape}")
+            
+            # Dynamically adjust the first layer of the combiner
+            if not hasattr(self, 'adjusted_combiner') or self.adjusted_combiner.in_features != actual_dim:
+                self.adjusted_combiner = nn.Linear(actual_dim, self.combiner[0].out_features).to(combined_features.device)
+                # Copy weights for the dimensions that match
+                min_dim = min(actual_dim, self.total_input_dim)
+                with torch.no_grad():
+                    self.adjusted_combiner.weight[:, :min_dim].copy_(self.combiner[0].weight[:, :min_dim])
+                    self.adjusted_combiner.bias.copy_(self.combiner[0].bias)
+                print(f"Adjusted first layer to accept {actual_dim} input features")
+            
+            # Use the adjusted combiner for the first layer
+            hidden = self.adjusted_combiner(combined_features)
+            hidden = F.relu(hidden)
+            hidden = F.dropout(hidden, 0.3, self.training)
+            
+            # Continue with the rest of the original combiner
+            for i, layer in enumerate(self.combiner):
+                if i >= 2:  # Skip the first Linear, ReLU, and Dropout
+                    hidden = layer(hidden)
+        else:
+            # Use the original combiner if dimensions match
+            hidden = self.combiner(combined_features)
+        
         logits = self.classifier(hidden)
         return logits
     
@@ -206,6 +252,12 @@ def train_anes_classifier(
             bias_scores = bias_representer.get_bias_scores(activations).to(device)
             weighted_system_rep, _ = bias_representer.get_system_representations(activations)
             weighted_system_rep = weighted_system_rep.to(device)
+            
+            # Debug shapes
+            if epoch == 0 and total == 0:
+                print(f"ANES features shape: {anes_features.shape}")
+                print(f"Bias scores shape: {bias_scores.shape}")
+                print(f"Weighted system rep shape: {weighted_system_rep.shape}")
             
             # Forward pass
             optimizer.zero_grad()
