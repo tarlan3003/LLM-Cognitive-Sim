@@ -16,8 +16,8 @@ from typing import Dict, List, Tuple, Optional, Union
 
 # Import modules
 from src.dataset import ProspectTheoryDataset, convert_anes_to_dataset
-from llm_extractor import HiddenLayerExtractor
-from bias_representer import CognitiveBiasRepresenter
+from src.llm_extractor import HiddenLayerExtractor
+from src.bias_representer import CognitiveBiasRepresenter
 from anes_classifier import (
     ProspectTheoryANESClassifier, 
     train_anes_classifier, 
