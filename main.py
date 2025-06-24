@@ -15,7 +15,7 @@ import argparse
 from typing import Dict, List, Tuple, Optional, Union
 
 # Import modules
-from dataset import ProspectTheoryDataset, convert_anes_to_dataset
+from src.dataset import ProspectTheoryDataset, convert_anes_to_dataset
 from llm_extractor import HiddenLayerExtractor
 from bias_representer import CognitiveBiasRepresenter
 from anes_classifier import (
