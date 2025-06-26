@@ -91,16 +91,9 @@ class ProspectTheoryDataset(Dataset):
         text = ""
         
         # Add demographic information if available
-        if 'political_interest' in features:
-            text += f"Political interest: {features['political_interest']}\n"
-        if 'campaign_interest' in features:
-            text += f"Campaign interest: {features['campaign_interest']}\n"
-        if 'economic_views' in features:
-            text += f"Economic views: {features['economic_views']}\n"
-        if 'state' in features:
-            text += f"State: {features['state']}\n"
-        if 'media_consumption' in features:
-            text += f"Media consumption: {features['media_consumption']}\n"
+        for key, value in features.items():
+            if isinstance(value, (str, int, float)) and key != 'target':
+                text += f"{key}: {value}\n"
             
         # Add question
         text += "Q: Who would this respondent vote for in a Harris vs Trump election?"
@@ -157,6 +150,15 @@ class ProspectTheoryDataset(Dataset):
                     value = item['anes_features'][key]
                     if isinstance(value, (int, float)):
                         anes_features.append(value)
+                    elif isinstance(value, str) and value.isdigit():
+                        anes_features.append(float(value))
+                    elif isinstance(value, str):
+                        # One-hot encode categorical features
+                        if key + '_' + value not in item.get('_feature_mapping', {}):
+                            # Skip if not in feature mapping
+                            continue
+                        feature_idx = item['_feature_mapping'][key + '_' + value]
+                        anes_features.append(1.0 if feature_idx else 0.0)
                 result['anes_features'] = torch.tensor(anes_features, dtype=torch.float)
         
         # Add target if available
@@ -305,7 +307,7 @@ def extract_legitimate_features(responses):
     """
     Extract only legitimate, non-leaky features from the responses.
     
-    This function is kept identical to the original implementation.
+    Enhanced with more features and feature engineering.
     """
     features = {}
     
@@ -320,25 +322,81 @@ def extract_legitimate_features(responses):
         return "NA"
     
     # Demographic features
+    features["age"] = extract_response(responses, "V201507x")  # Age
+    features["gender"] = extract_response(responses, "V201600")  # Gender
+    features["education"] = extract_response(responses, "V201510")  # Education level
+    features["income"] = extract_response(responses, "V201617x")  # Income
+    features["race"] = extract_response(responses, "V201549x")  # Race/ethnicity
+    
+    # Political engagement
     features["political_interest"] = extract_response(responses, "V241004")  # Political interest
     features["campaign_interest"] = extract_response(responses, "V241005")   # Campaign interest
+    features["voter_registration"] = extract_response(responses, "V241001")  # Voter registration
+    features["voting_frequency"] = extract_response(responses, "V241002")    # How often votes
     
-    # Economic views (if available)
-    features["economic_views"] = extract_response(responses, "V241127")
+    # Economic views
+    features["economic_views"] = extract_response(responses, "V241127")  # Economic views
+    features["economy_better_worse"] = extract_response(responses, "V241111")  # Economy better/worse
+    features["personal_finance"] = extract_response(responses, "V241112")  # Personal financial situation
     
-    # State/region information
-    features["state"] = extract_response(responses, "V241017")
+    # Geographic information
+    features["state"] = extract_response(responses, "V241017")  # State
+    features["urban_rural"] = extract_response(responses, "V241018")  # Urban/rural
     
-    # Media consumption (example)
-    features["media_consumption"] = extract_response(responses, "V241201")
+    # Media consumption
+    features["media_consumption"] = extract_response(responses, "V241201")  # Media consumption
+    features["social_media_use"] = extract_response(responses, "V241242")  # Social media use
+    features["news_interest"] = extract_response(responses, "V241211")  # News interest
+    
+    # Policy views (non-partisan)
+    features["immigration_importance"] = extract_response(responses, "V241310")  # Immigration importance
+    features["healthcare_importance"] = extract_response(responses, "V241311")  # Healthcare importance
+    features["economy_importance"] = extract_response(responses, "V241312")  # Economy importance
+    features["covid_importance"] = extract_response(responses, "V241313")  # COVID importance
+    
+    # Feature engineering
+    # Convert categorical features to numeric where possible
+    try:
+        if features["political_interest"] not in ["NA"]:
+            features["political_interest_num"] = float(features["political_interest"])
+    except:
+        features["political_interest_num"] = 0.0
+        
+    try:
+        if features["campaign_interest"] not in ["NA"]:
+            features["campaign_interest_num"] = float(features["campaign_interest"])
+    except:
+        features["campaign_interest_num"] = 0.0
+    
+    # Create interaction features
+    if features["political_interest_num"] > 0 and features["campaign_interest_num"] > 0:
+        features["political_engagement"] = features["political_interest_num"] * features["campaign_interest_num"]
+    else:
+        features["political_engagement"] = 0.0
     
     # Convert features to a single text representation
     input_text = (
+        f"Age: {features['age']}\n"
+        f"Gender: {features['gender']}\n"
+        f"Education: {features['education']}\n"
+        f"Income: {features['income']}\n"
+        f"Race: {features['race']}\n"
         f"Political interest: {features['political_interest']}\n"
         f"Campaign interest: {features['campaign_interest']}\n"
+        f"Voter registration: {features['voter_registration']}\n"
+        f"Voting frequency: {features['voting_frequency']}\n"
         f"Economic views: {features['economic_views']}\n"
+        f"Economy better/worse: {features['economy_better_worse']}\n"
+        f"Personal finance: {features['personal_finance']}\n"
         f"State: {features['state']}\n"
+        f"Urban/rural: {features['urban_rural']}\n"
         f"Media consumption: {features['media_consumption']}\n"
+        f"Social media use: {features['social_media_use']}\n"
+        f"News interest: {features['news_interest']}\n"
+        f"Immigration importance: {features['immigration_importance']}\n"
+        f"Healthcare importance: {features['healthcare_importance']}\n"
+        f"Economy importance: {features['economy_importance']}\n"
+        f"COVID importance: {features['covid_importance']}\n"
         f"Q: Who would this respondent vote for in a Harris vs Trump election?"
     )
     
@@ -463,11 +521,27 @@ def convert_anes_to_dataset(
     if feature_codes is None:
         # Default legitimate features that don't leak the outcome
         feature_codes = [
-            "V241004",  # Political interest
-            "V241005",  # Campaign interest
-            "V241127",  # Economic views
-            "V241017",  # State
-            "V241201",  # Media consumption
+            "V201507x",  # Age
+            "V201600",   # Gender
+            "V201510",   # Education level
+            "V201617x",  # Income
+            "V201549x",  # Race/ethnicity
+            "V241004",   # Political interest
+            "V241005",   # Campaign interest
+            "V241001",   # Voter registration
+            "V241002",   # Voting frequency
+            "V241127",   # Economic views
+            "V241111",   # Economy better/worse
+            "V241112",   # Personal financial situation
+            "V241017",   # State
+            "V241018",   # Urban/rural
+            "V241201",   # Media consumption
+            "V241242",   # Social media use
+            "V241211",   # News interest
+            "V241310",   # Immigration importance
+            "V241311",   # Healthcare importance
+            "V241312",   # Economy importance
+            "V241313",   # COVID importance
         ]
     
     # Load data using the original function
@@ -475,9 +549,22 @@ def convert_anes_to_dataset(
         json_folder, target_variable, include_classes=include_classes
     )
     
+    # Process features for one-hot encoding
+    categorical_features = set()
+    for features in features_data:
+        for key, value in features.items():
+            if isinstance(value, str) and not value.isdigit() and value != "NA":
+                categorical_features.add(key + '_' + value)
+    
+    # Create feature mapping
+    feature_mapping = {feature: i for i, feature in enumerate(sorted(categorical_features))}
+    
     # Convert to the format expected by ProspectTheoryDataset
     data = []
     for (text, label), features in zip(examples, features_data):
+        # Add feature mapping to each example
+        features['_feature_mapping'] = feature_mapping
+        
         data.append({
             'text': text,
             'anes_features': features,
@@ -491,6 +578,7 @@ def convert_anes_to_dataset(
     
     print(f"Created ANES dataset with {len(data)} examples at {output_path}")
     print(f"Target distribution: {Counter([d['target'] for d in data])}")
+    print(f"Number of features: {len(feature_mapping) + sum(1 for f in features_data[0] if isinstance(features_data[0][f], (int, float)))}")
     
     return data
 

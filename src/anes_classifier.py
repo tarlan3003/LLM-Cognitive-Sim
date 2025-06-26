@@ -1,8 +1,10 @@
 """
-ANES Classifier Module for Prospect Theory Pipeline
+ANES Classifier Module for Prospect Theory LLM - Best Performing Version
 
-This module provides the classifier for ANES data using features derived from
-LLM hidden layer representations and cognitive bias scores.
+This module implements the ANES classifier that predicts voting preferences
+based on cognitive bias representations and ANES features.
+
+Author: Tarlan Sultanov
 """
 
 import torch
@@ -10,465 +12,501 @@ import torch.nn as nn
 import torch.nn.functional as F
 import numpy as np
 from tqdm import tqdm
-from sklearn.metrics import classification_report, confusion_matrix, roc_auc_score
-import matplotlib.pyplot as plt
-import seaborn as sns
-from typing import Dict, List, Tuple, Optional, Union
-
+from typing import List, Dict, Tuple, Optional
+from sklearn.metrics import classification_report, confusion_matrix, accuracy_score
 
 class FocalLoss(nn.Module):
     """
-    Focal Loss implementation, identical to the one in the original notebook.
+    Focal Loss for handling class imbalance.
+    
+    This loss function gives more weight to hard examples and less weight to easy examples.
     """
+    
     def __init__(self, alpha=None, gamma=2.0, reduction='mean'):
         """
-        alpha: 1D tensor of shape [num_classes] or None
-        gamma: focusing parameter
+        Initialize Focal Loss.
+        
+        Args:
+            alpha: Class weights
+            gamma: Focusing parameter
+            reduction: Reduction method
         """
         super().__init__()
         self.alpha = alpha
         self.gamma = gamma
         self.reduction = reduction
-
-    def forward(self, logits, targets):
+    
+    def forward(self, inputs, targets):
         """
-        logits: Tensor[B, C]
-        targets: Tensor[B] with class indices 0 ≤ targets[i] < C
+        Forward pass.
+        
+        Args:
+            inputs: Predicted logits
+            targets: Target labels
+            
+        Returns:
+            Loss value
         """
-        # move class weights if provided
+        BCE_loss = F.binary_cross_entropy_with_logits(inputs, targets.float(), reduction='none')
+        pt = torch.exp(-BCE_loss)
+        F_loss = (1 - pt) ** self.gamma * BCE_loss
+        
         if self.alpha is not None:
-            self.alpha = self.alpha.to(logits.device)
-
-        # standard CE with no reduction → [B]
-        ce = F.cross_entropy(logits, targets, weight=self.alpha, reduction='none')
-        pt = torch.exp(-ce)             # [B], pt = probability of the true class
-        loss = (1 - pt) ** self.gamma * ce
-
+            if isinstance(self.alpha, torch.Tensor):
+                alpha = self.alpha[targets.data.view(-1)]
+            else:
+                alpha = torch.tensor([self.alpha, 1 - self.alpha]).to(inputs.device)[targets.data.view(-1)]
+            F_loss = alpha * F_loss
+        
         if self.reduction == 'mean':
-            return loss.mean()
+            return F_loss.mean()
         elif self.reduction == 'sum':
-            return loss.sum()
+            return F_loss.sum()
         else:
-            return loss  # [B]
-
+            return F_loss
 
 class ProspectTheoryANESClassifier(nn.Module):
     """
-    Classifier for ANES data using Prospect Theory features.
+    Classifier for predicting voting preferences based on cognitive bias representations.
     
-    This classifier combines traditional ANES features with cognitive bias scores
-    and System 1/2 representations to predict voting preferences.
+    This model combines:
+    1. ANES features
+    2. Cognitive bias scores
+    3. System 1/2 thinking weights
     """
     
     def __init__(
         self, 
         anes_feature_dim: int, 
-        llm_hidden_dim: int, 
-        num_biases: int, 
-        combined_hidden_dim: int = 256, 
-        num_classes: int = 2
+        bias_dim: int, 
+        system_dim: int = 2,
+        hidden_dim: int = 256,
+        dropout: float = 0.3
     ):
         """
         Initialize the ANES classifier.
         
         Args:
             anes_feature_dim: Dimension of ANES features
-            llm_hidden_dim: Dimension of LLM hidden states
-            num_biases: Number of bias types
-            combined_hidden_dim: Hidden dimension for combined features
-            num_classes: Number of target classes
+            bias_dim: Dimension of bias scores
+            system_dim: Dimension of system weights
+            hidden_dim: Dimension of hidden layers
+            dropout: Dropout rate
         """
         super().__init__()
-        # Input: anes_features + bias_scores + weighted_system_llm_rep
-        self.total_input_dim = anes_feature_dim + num_biases + llm_hidden_dim 
         
-        self.combiner = nn.Sequential(
-            nn.Linear(self.total_input_dim, combined_hidden_dim),
+        self.anes_feature_dim = anes_feature_dim
+        self.bias_dim = bias_dim
+        self.system_dim = system_dim
+        self.hidden_dim = hidden_dim
+        
+        # ANES feature encoder
+        self.anes_encoder = nn.Sequential(
+            nn.Linear(anes_feature_dim, hidden_dim),
+            nn.BatchNorm1d(hidden_dim),
             nn.ReLU(),
-            nn.Dropout(0.3),
-            nn.Linear(combined_hidden_dim, combined_hidden_dim // 2),
+            nn.Dropout(dropout),
+            nn.Linear(hidden_dim, hidden_dim // 2),
+            nn.BatchNorm1d(hidden_dim // 2),
             nn.ReLU(),
-            nn.Dropout(0.3),
+            nn.Dropout(dropout)
         )
-        self.classifier = nn.Linear(combined_hidden_dim // 2, num_classes)
         
-        print(f"Initialized ProspectTheoryANESClassifier: {self.total_input_dim} input features, {num_classes} classes")
-
+        # Bias score encoder
+        self.bias_encoder = nn.Sequential(
+            nn.Linear(bias_dim, hidden_dim // 2),
+            nn.BatchNorm1d(hidden_dim // 2),
+            nn.ReLU(),
+            nn.Dropout(dropout)
+        )
+        
+        # System weight encoder
+        self.system_encoder = nn.Sequential(
+            nn.Linear(system_dim, hidden_dim // 4),
+            nn.BatchNorm1d(hidden_dim // 4),
+            nn.ReLU(),
+            nn.Dropout(dropout)
+        )
+        
+        # Combined features dimension
+        combined_dim = (hidden_dim // 2) + (hidden_dim // 2) + (hidden_dim // 4)
+        
+        # Classifier
+        self.classifier = nn.Sequential(
+            nn.Linear(combined_dim, hidden_dim),
+            nn.BatchNorm1d(hidden_dim),
+            nn.ReLU(),
+            nn.Dropout(dropout),
+            nn.Linear(hidden_dim, 1)
+        )
+        
+        # For dynamic input handling
+        self.adjusted_combiner = None
+        
+        # Initialize weights
+        self._init_weights()
+    
+    def _init_weights(self):
+        """
+        Initialize model weights.
+        """
+        for module in self.modules():
+            if isinstance(module, nn.Linear):
+                nn.init.xavier_normal_(module.weight)
+                if module.bias is not None:
+                    nn.init.zeros_(module.bias)
+    
     def forward(
         self, 
         anes_features: torch.Tensor, 
         bias_scores: torch.Tensor, 
-        weighted_system_rep: torch.Tensor
+        system_weights: torch.Tensor
     ) -> torch.Tensor:
         """
         Forward pass.
         
         Args:
-            anes_features: ANES features [batch_size, anes_feature_dim]
-            bias_scores: Bias scores [batch_size, num_biases]
-            weighted_system_rep: Weighted system representation [batch_size, llm_hidden_dim]
+            anes_features: ANES features
+            bias_scores: Cognitive bias scores
+            system_weights: System 1/2 thinking weights
             
         Returns:
-            Logits [batch_size, num_classes]
+            Logits for voting preference
         """
-        # Debug shape information
-        batch_size = anes_features.shape[0]
-        anes_dim = anes_features.shape[1] if len(anes_features.shape) > 1 else 1
-        bias_dim = bias_scores.shape[1] if len(bias_scores.shape) > 1 else 1
-        system_dim = weighted_system_rep.shape[1] if len(weighted_system_rep.shape) > 1 else 1
+        # Encode features
+        anes_encoded = self.anes_encoder(anes_features)
+        bias_encoded = self.bias_encoder(bias_scores)
+        system_encoded = self.system_encoder(system_weights)
         
-        # Ensure anes_features has correct shape
-        if len(anes_features.shape) == 1:
-            anes_features = anes_features.unsqueeze(1)
-            
-        # Ensure bias_scores has correct shape
-        if len(bias_scores.shape) == 1:
-            bias_scores = bias_scores.unsqueeze(1)
-            
-        # Ensure weighted_system_rep has correct shape
-        if len(weighted_system_rep.shape) == 1:
-            weighted_system_rep = weighted_system_rep.unsqueeze(1)
+        # Concatenate features
+        combined_features = torch.cat([anes_encoded, bias_encoded, system_encoded], dim=1)
         
-        # Concatenate all features
-        combined_features = torch.cat([anes_features, bias_scores, weighted_system_rep], dim=1)
-        
-        # Check if dimensions match
+        # Handle dynamic input dimension changes
         actual_dim = combined_features.shape[1]
-        if actual_dim != self.total_input_dim:
-            print(f"WARNING: Input dimension mismatch. Expected {self.total_input_dim}, got {actual_dim}")
-            print(f"ANES features: {anes_features.shape}, Bias scores: {bias_scores.shape}, System rep: {weighted_system_rep.shape}")
+        expected_dim = (self.hidden_dim // 2) + (self.hidden_dim // 2) + (self.hidden_dim // 4)
+        
+        if actual_dim != expected_dim:
+            # Print debug info for the first occurrence
+            if not hasattr(self, 'dimension_mismatch_reported') or not self.dimension_mismatch_reported:
+                print(f"Warning: Input dimension mismatch. Expected {expected_dim}, got {actual_dim}.")
+                print(f"ANES encoded shape: {anes_encoded.shape}")
+                print(f"Bias encoded shape: {bias_encoded.shape}")
+                print(f"System encoded shape: {system_encoded.shape}")
+                print(f"Combined shape: {combined_features.shape}")
+                self.dimension_mismatch_reported = True
             
-            # Dynamically adjust the first layer of the combiner
-            if not hasattr(self, 'adjusted_combiner') or self.adjusted_combiner.in_features != actual_dim:
-                self.adjusted_combiner = nn.Linear(actual_dim, self.combiner[0].out_features).to(combined_features.device)
-                # Copy weights for the dimensions that match
-                min_dim = min(actual_dim, self.total_input_dim)
-                with torch.no_grad():
-                    self.adjusted_combiner.weight[:, :min_dim].copy_(self.combiner[0].weight[:, :min_dim])
-                    self.adjusted_combiner.bias.copy_(self.combiner[0].bias)
-                print(f"Adjusted first layer to accept {actual_dim} input features")
+            # Create a new adjusted combiner if needed
+            need_new_layer = True
+            if self.adjusted_combiner is not None:
+                if hasattr(self.adjusted_combiner, 'in_features') and self.adjusted_combiner.in_features == actual_dim:
+                    need_new_layer = False
             
-            # Use the adjusted combiner for the first layer
-            hidden = self.adjusted_combiner(combined_features)
-            hidden = F.relu(hidden)
-            hidden = F.dropout(hidden, 0.3, self.training)
+            if need_new_layer:
+                self.adjusted_combiner = nn.Linear(actual_dim, self.hidden_dim).to(combined_features.device)
+                print(f"Created new adjusted combiner: {actual_dim} -> {self.hidden_dim}")
             
-            # Continue with the rest of the original combiner
-            for i, layer in enumerate(self.combiner):
-                if i >= 2:  # Skip the first Linear, ReLU, and Dropout
-                    hidden = layer(hidden)
+            # Use the adjusted combiner
+            combined = self.adjusted_combiner(combined_features)
+            combined = F.relu(combined)
+            combined = F.dropout(combined, p=0.3, training=self.training)
+            logits = self.classifier[-1](combined)
         else:
-            # Use the original combiner if dimensions match
-            hidden = self.combiner(combined_features)
+            # Use the standard classifier
+            logits = self.classifier(combined_features)
         
-        logits = self.classifier(hidden)
-        return logits
-    
-    def save(self, path: str) -> None:
-        """
-        Save the model to a file.
-        
-        Args:
-            path: Path to save the model to
-        """
-        torch.save(self.state_dict(), path)
-        print(f"Saved ProspectTheoryANESClassifier to {path}")
-    
-    @classmethod
-    def load(
-        cls, 
-        path: str, 
-        anes_feature_dim: int, 
-        llm_hidden_dim: int, 
-        num_biases: int, 
-        device: str = 'cpu'
-    ) -> 'ProspectTheoryANESClassifier':
-        """
-        Load the model from a file.
-        
-        Args:
-            path: Path to load the model from
-            anes_feature_dim: Dimension of ANES features
-            llm_hidden_dim: Dimension of LLM hidden states
-            num_biases: Number of bias types
-            device: Device to load the model on
-            
-        Returns:
-            Loaded ProspectTheoryANESClassifier
-        """
-        model = cls(anes_feature_dim, llm_hidden_dim, num_biases)
-        model.load_state_dict(torch.load(path, map_location=device))
-        model = model.to(device)
-        print(f"Loaded ProspectTheoryANESClassifier from {path}")
-        return model
-
+        return logits.squeeze(-1)
 
 def train_anes_classifier(
-    anes_classifier: ProspectTheoryANESClassifier, 
-    dataloader, 
-    llm_extractor, 
-    bias_representer, 
-    num_epochs: int = 10, 
-    lr: float = 1e-3, 
-    device: str = 'cpu'
-) -> Dict:
+    train_dataloader: torch.utils.data.DataLoader,
+    val_dataloader: torch.utils.data.DataLoader,
+    extractor: 'HiddenLayerExtractor',
+    bias_representer: 'CognitiveBiasRepresenter',
+    num_epochs: int = 20,
+    learning_rate: float = 2e-4,
+    device: torch.device = None,
+    save_dir: str = "models",
+    focal_loss_gamma: float = 2.0
+) -> Dict[str, float]:
     """
     Train the ANES classifier.
     
     Args:
-        anes_classifier: ProspectTheoryANESClassifier instance
-        dataloader: DataLoader for training data
-        llm_extractor: HiddenLayerExtractor instance
-        bias_representer: CognitiveBiasRepresenter instance
-        num_epochs: Number of epochs to train for
-        lr: Learning rate
-        device: Device to run the model on
-        
-    Returns:
-        Dictionary of training metrics
-    """
-    optimizer = torch.optim.Adam(anes_classifier.parameters(), lr=lr)
-    
-    # Use Focal Loss for better handling of class imbalance, as in original notebook
-    loss_fn = FocalLoss(gamma=2.0)
-    
-    # Training loop
-    metrics = {'epoch_losses': [], 'epoch_accuracies': []}
-    
-    for epoch in range(num_epochs):
-        total_loss = 0
-        correct = 0
-        total = 0
-        
-        for batch in tqdm(dataloader, desc=f"Epoch {epoch+1}/{num_epochs}"):
-            texts = batch['text']
-            anes_features = batch['anes_features'].to(device)
-            targets = batch['target'].to(device)
-            
-            # Extract activations
-            activations = llm_extractor.extract_activations(texts)
-            
-            # Get bias scores and system representations
-            bias_scores = bias_representer.get_bias_scores(activations).to(device)
-            weighted_system_rep, _ = bias_representer.get_system_representations(activations)
-            weighted_system_rep = weighted_system_rep.to(device)
-            
-            # Debug shapes
-            if epoch == 0 and total == 0:
-                print(f"ANES features shape: {anes_features.shape}")
-                print(f"Bias scores shape: {bias_scores.shape}")
-                print(f"Weighted system rep shape: {weighted_system_rep.shape}")
-            
-            # Forward pass
-            optimizer.zero_grad()
-            logits = anes_classifier(anes_features, bias_scores, weighted_system_rep)
-            loss = loss_fn(logits, targets)
-            
-            # Backward pass
-            loss.backward()
-            optimizer.step()
-            
-            # Track metrics
-            total_loss += loss.item() * len(targets)
-            preds = torch.argmax(logits, dim=1)
-            correct += (preds == targets).sum().item()
-            total += len(targets)
-        
-        # Epoch metrics
-        epoch_loss = total_loss / total
-        epoch_acc = correct / total
-        metrics['epoch_losses'].append(epoch_loss)
-        metrics['epoch_accuracies'].append(epoch_acc)
-        
-        print(f"Epoch {epoch+1}/{num_epochs}: Loss={epoch_loss:.4f}, Acc={epoch_acc:.4f}")
-    
-    return metrics
-
-
-def evaluate_anes_classifier(
-    anes_classifier: ProspectTheoryANESClassifier, 
-    dataloader, 
-    llm_extractor, 
-    bias_representer, 
-    device: str = 'cpu',
-    target_names: List[str] = None,
-    thresholds: List[float] = None
-) -> Dict:
-    """
-    Evaluate the ANES classifier.
-    
-    Args:
-        anes_classifier: ProspectTheoryANESClassifier instance
-        dataloader: DataLoader for evaluation data
-        llm_extractor: HiddenLayerExtractor instance
-        bias_representer: CognitiveBiasRepresenter instance
-        device: Device to run the model on
-        target_names: Names of target classes
-        thresholds: List of thresholds to evaluate (as in original notebook)
+        train_dataloader: DataLoader for training data
+        val_dataloader: DataLoader for validation data
+        extractor: Hidden layer extractor
+        bias_representer: Cognitive bias representer
+        num_epochs: Number of training epochs
+        learning_rate: Learning rate
+        device: Device to train on
+        save_dir: Directory to save models
+        focal_loss_gamma: Gamma parameter for Focal Loss
         
     Returns:
         Dictionary of evaluation metrics
     """
-    if target_names is None:
-        target_names = ['Trump', 'Harris']  # Default for binary classification
-        
-    if thresholds is None:
-        thresholds = [0.3, 0.4, 0.5, 0.6, 0.7]  # Default thresholds from original notebook
-        
-    anes_classifier.eval()
+    if device is None:
+        device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     
-    all_preds = []
-    all_targets = []
-    all_logits = []
-    all_bias_scores = []
-    all_system_weights = []
+    # Get dimensions from first batch
+    for batch in train_dataloader:
+        anes_feature_dim = batch['anes_features'].shape[1]
+        break
     
-    with torch.no_grad():
-        for batch in tqdm(dataloader, desc="Evaluating"):
-            texts = batch['text']
+    # Get bias dimension from representer
+    bias_dim = bias_representer.num_biases
+    
+    # Initialize classifier
+    classifier = ProspectTheoryANESClassifier(
+        anes_feature_dim=anes_feature_dim,
+        bias_dim=bias_dim,
+        system_dim=2,
+        hidden_dim=256,
+        dropout=0.3
+    ).to(device)
+    
+    # Calculate class weights for balanced loss
+    class_counts = torch.zeros(2)
+    for batch in train_dataloader:
+        targets = batch['target']
+        for t in range(2):
+            class_counts[t] += (targets == t).sum().item()
+    
+    class_weights = 1.0 / class_counts
+    class_weights = class_weights / class_weights.sum()
+    print(f"Using class weights: {class_weights}")
+    
+    # Define loss function
+    loss_fn = FocalLoss(alpha=class_weights.to(device), gamma=focal_loss_gamma)
+    
+    # Define optimizer
+    optimizer = torch.optim.AdamW(classifier.parameters(), lr=learning_rate)
+    
+    # Define learning rate scheduler
+    scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(
+        optimizer, 
+        mode='min', 
+        factor=0.5, 
+        patience=3
+    )
+    
+    # Training loop
+    best_val_loss = float('inf')
+    best_val_accuracy = 0.0
+    best_model_state = None
+    
+    for epoch in range(num_epochs):
+        # Training
+        classifier.train()
+        train_loss = 0.0
+        train_correct = 0
+        train_total = 0
+        
+        for batch in tqdm(train_dataloader, desc=f"Epoch {epoch+1}/{num_epochs} (Training)"):
+            # Extract features
+            input_ids = batch['input_ids'].to(device)
+            attention_mask = batch['attention_mask'].to(device)
             anes_features = batch['anes_features'].to(device)
             targets = batch['target'].to(device)
             
-            # Extract activations
-            activations = llm_extractor.extract_activations(texts)
+            # Get hidden representations
+            hidden_reps = extractor(input_ids, attention_mask)
             
-            # Get bias scores and system representations
-            bias_scores = bias_representer.get_bias_scores(activations).to(device)
-            weighted_system_rep, system_weights = bias_representer.get_system_representations(activations)
-            weighted_system_rep = weighted_system_rep.to(device)
+            # Get bias scores and system weights
+            bias_scores, system_weights = bias_representer(hidden_reps)
             
             # Forward pass
-            logits = anes_classifier(anes_features, bias_scores, weighted_system_rep)
+            logits = classifier(anes_features, bias_scores, system_weights)
             
-            # Collect results
-            all_logits.append(logits.cpu())
-            all_targets.append(targets.cpu())
-            all_bias_scores.append(bias_scores.cpu().numpy())
-            all_system_weights.append(system_weights.cpu().numpy())
+            # Calculate loss
+            loss = loss_fn(logits, targets)
+            
+            # Backward pass
+            optimizer.zero_grad()
+            loss.backward()
+            
+            # Gradient clipping
+            torch.nn.utils.clip_grad_norm_(classifier.parameters(), max_norm=1.0)
+            
+            optimizer.step()
+            
+            # Update metrics
+            train_loss += loss.item() * input_ids.size(0)
+            preds = (torch.sigmoid(logits) > 0.5).long()
+            train_correct += (preds == targets).sum().item()
+            train_total += input_ids.size(0)
+        
+        # Calculate average loss and accuracy
+        train_loss /= train_total
+        train_accuracy = train_correct / train_total
+        
+        # Validation
+        val_metrics = evaluate_anes_classifier(
+            classifier,
+            val_dataloader,
+            extractor,
+            bias_representer,
+            device
+        )
+        
+        # Update learning rate
+        scheduler.step(val_metrics['loss'])
+        
+        # Print metrics
+        print(f"Epoch {epoch+1}/{num_epochs}:")
+        print(f"  Train - Loss: {train_loss:.4f}, Accuracy: {train_accuracy:.4f}")
+        print(f"  Val - Loss: {val_metrics['loss']:.4f}, Accuracy: {val_metrics['accuracy']:.4f}")
+        
+        # Save best model
+        if val_metrics['accuracy'] > best_val_accuracy:
+            best_val_accuracy = val_metrics['accuracy']
+            best_val_loss = val_metrics['loss']
+            best_model_state = classifier.state_dict()
+            
+            # Save model
+            import os
+            os.makedirs(save_dir, exist_ok=True)
+            torch.save(classifier.state_dict(), os.path.join(save_dir, "anes_classifier.pt"))
+            print(f"  Saved best model with accuracy: {best_val_accuracy:.4f}")
     
-    # Convert to numpy arrays
-    all_logits = torch.cat(all_logits, dim=0)
-    all_targets = torch.cat(all_targets, dim=0).numpy()
-    all_probs = F.softmax(all_logits, dim=1).numpy()
-    all_bias_scores = np.concatenate(all_bias_scores, axis=0)
-    all_system_weights = np.concatenate(all_system_weights, axis=0)
+    # Load best model
+    classifier.load_state_dict(best_model_state)
     
-    # Evaluate with different thresholds as in original notebook
-    results = {}
+    # Final evaluation with different thresholds
+    thresholds = [0.3, 0.4, 0.5, 0.6, 0.7]
+    final_metrics = {}
     
-    print("\nEvaluating with different thresholds:")
     for threshold in thresholds:
-        # Apply threshold to probabilities
-        all_preds = (all_probs[:, 1] > threshold).astype(int)
+        threshold_metrics = evaluate_anes_classifier(
+            classifier,
+            val_dataloader,
+            extractor,
+            bias_representer,
+            device,
+            threshold=threshold
+        )
         
-        # Calculate metrics
-        accuracy = (all_preds == all_targets).mean()
+        final_metrics[f"threshold_{threshold}"] = threshold_metrics
+    
+    # Calculate average system weights
+    system_weights_sum = torch.zeros(2)
+    total_samples = 0
+    
+    with torch.no_grad():
+        for batch in val_dataloader:
+            # Extract features
+            input_ids = batch['input_ids'].to(device)
+            attention_mask = batch['attention_mask'].to(device)
+            
+            # Get hidden representations
+            hidden_reps = extractor(input_ids, attention_mask)
+            
+            # Get system weights
+            _, system_weights = bias_representer(hidden_reps)
+            
+            # Update sum
+            system_weights_sum += system_weights.sum(dim=0).cpu()
+            total_samples += input_ids.size(0)
+    
+    # Calculate average
+    avg_system_weights = system_weights_sum / total_samples
+    final_metrics['system_weights'] = avg_system_weights.tolist()
+    
+    return final_metrics
+
+def evaluate_anes_classifier(
+    classifier: ProspectTheoryANESClassifier,
+    dataloader: torch.utils.data.DataLoader,
+    extractor: 'HiddenLayerExtractor',
+    bias_representer: 'CognitiveBiasRepresenter',
+    device: torch.device = None,
+    threshold: float = 0.5
+) -> Dict[str, float]:
+    """
+    Evaluate the ANES classifier.
+    
+    Args:
+        classifier: ANES classifier
+        dataloader: DataLoader for evaluation data
+        extractor: Hidden layer extractor
+        bias_representer: Cognitive bias representer
+        device: Device to evaluate on
+        threshold: Classification threshold
         
-        # Classification report
-        report = classification_report(all_targets, all_preds, target_names=target_names, output_dict=True)
-        
-        # Print report
-        print(f"\n✅ Classification Report (Thresholded @ {threshold:.2f}):")
-        print(classification_report(all_targets, all_preds, target_names=target_names))
-        
-        # Store results
-        results[f"threshold_{threshold}"] = {
-            'accuracy': accuracy,
-            'classification_report': report,
-            'confusion_matrix': confusion_matrix(all_targets, all_preds)
+    Returns:
+        Dictionary of evaluation metrics
+    """
+    if device is None:
+        device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+    
+    classifier.eval()
+    
+    # Evaluation metrics
+    loss_fn = nn.BCEWithLogitsLoss()
+    total_loss = 0.0
+    all_preds = []
+    all_targets = []
+    
+    with torch.no_grad():
+        for batch in dataloader:
+            # Extract features
+            input_ids = batch['input_ids'].to(device)
+            attention_mask = batch['attention_mask'].to(device)
+            anes_features = batch['anes_features'].to(device)
+            targets = batch['target'].to(device)
+            
+            # Get hidden representations
+            hidden_reps = extractor(input_ids, attention_mask)
+            
+            # Get bias scores and system weights
+            bias_scores, system_weights = bias_representer(hidden_reps)
+            
+            # Forward pass
+            logits = classifier(anes_features, bias_scores, system_weights)
+            
+            # Calculate loss
+            loss = loss_fn(logits, targets.float())
+            
+            # Update metrics
+            total_loss += loss.item() * input_ids.size(0)
+            
+            # Apply threshold
+            probs = torch.sigmoid(logits)
+            preds = (probs > threshold).long()
+            
+            # Store predictions and targets
+            all_preds.extend(preds.cpu().numpy())
+            all_targets.extend(targets.cpu().numpy())
+    
+    # Calculate metrics
+    all_preds = np.array(all_preds)
+    all_targets = np.array(all_targets)
+    
+    accuracy = accuracy_score(all_targets, all_preds)
+    
+    # Get classification report
+    target_names = ["Donald Trump", "Kamala Harris"]
+    report = classification_report(all_targets, all_preds, target_names=target_names, output_dict=True)
+    
+    # Extract metrics
+    class_metrics = {}
+    for i, name in enumerate(target_names):
+        class_metrics[name] = {
+            'precision': report[name]['precision'],
+            'recall': report[name]['recall'],
+            'f1': report[name]['f1-score']
         }
     
-    # Calculate bias scores and system weights by class
-    bias_by_class = {}
-    system_by_class = {}
+    # Calculate average loss
+    avg_loss = total_loss / len(dataloader.dataset)
     
-    for i, class_name in enumerate(target_names):
-        mask = all_targets == i
-        if mask.sum() > 0:
-            bias_by_class[class_name] = all_bias_scores[mask].mean(axis=0)
-            system_by_class[class_name] = all_system_weights[mask].mean(axis=0)
-    
-    # Return all metrics
     return {
-        'thresholded_results': results,
-        'avg_bias_scores': all_bias_scores.mean(axis=0),
-        'avg_system_weights': all_system_weights.mean(axis=0),
-        'bias_by_class': bias_by_class,
-        'system_by_class': system_by_class
+        'loss': avg_loss,
+        'accuracy': accuracy,
+        'class_metrics': class_metrics,
+        'macro_precision': report['macro avg']['precision'],
+        'macro_recall': report['macro avg']['recall'],
+        'macro_f1': report['macro avg']['f1-score'],
+        'weighted_precision': report['weighted avg']['precision'],
+        'weighted_recall': report['weighted avg']['recall'],
+        'weighted_f1': report['weighted avg']['f1-score']
     }
-
-
-if __name__ == "__main__":
-    # Example usage with RoBERTa model from original notebook
-    import os
-    import torch.utils.data
-    from dataset import ProspectTheoryDataset, convert_anes_to_dataset
-    from llm_extractor import HiddenLayerExtractor
-    from bias_representer import CognitiveBiasRepresenter
-    from transformers import RobertaTokenizer
-    
-    # Create directories
-    os.makedirs("data/prospect_theory", exist_ok=True)
-    os.makedirs("data/anes", exist_ok=True)
-    os.makedirs("models", exist_ok=True)
-    
-    # Convert ANES data from original JSON files
-    json_folder = "/home/ubuntu/upload"  # Path to original JSON files
-    anes_output_path = "data/anes/anes_dataset.json"
-    
-    # Convert ANES data if needed
-    if not os.path.exists(anes_output_path):
-        convert_anes_to_dataset(
-            json_folder=json_folder,
-            output_path=anes_output_path,
-            target_variable="V241049",  # WHO WOULD R VOTE FOR: HARRIS VS TRUMP
-            include_classes=["Donald Trump", "Kamala Harris"]
-        )
-    
-    # Load tokenizer
-    tokenizer = RobertaTokenizer.from_pretrained("roberta-base")
-    
-    # Load dataset
-    anes_dataset = ProspectTheoryDataset(anes_output_path, tokenizer, is_anes=True)
-    
-    # Create dummy prospect theory dataset for testing
-    prospect_output_path = "data/prospect_theory/dummy.json"
-    if not os.path.exists(prospect_output_path):
-        ProspectTheoryDataset.create_prospect_theory_dataset(
-            prospect_output_path, num_examples=100
-        )
-    
-    # Load prospect theory dataset
-    prospect_dataset = ProspectTheoryDataset(prospect_output_path, tokenizer)
-    
-    # Create dataloaders
-    prospect_dataloader = torch.utils.data.DataLoader(prospect_dataset, batch_size=16, shuffle=True)
-    anes_dataloader = torch.utils.data.DataLoader(anes_dataset, batch_size=16, shuffle=True)
-    
-    # Initialize extractor and representer
-    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-    extractor = HiddenLayerExtractor("roberta-base", [-1], device=device)
-    representer = CognitiveBiasRepresenter(extractor.get_hidden_size(), prospect_dataset.bias_names, device=device)
-    
-    # Train CAVs and System 1/2 components
-    representer.train_cavs(prospect_dataloader, extractor)
-    representer.train_system_components(prospect_dataloader, extractor, num_epochs=2)
-    
-    # Initialize and train ANES classifier
-    anes_feature_dim = 5  # Number of features in extract_legitimate_features
-    classifier = ProspectTheoryANESClassifier(
-        anes_feature_dim, extractor.get_hidden_size(), len(prospect_dataset.bias_names)
-    ).to(device)
-    
-    # Train classifier
-    train_anes_classifier(classifier, anes_dataloader, extractor, representer, num_epochs=2, device=device)
-    
-    # Evaluate classifier
-    target_names = ["Donald Trump", "Kamala Harris"]
-    metrics = evaluate_anes_classifier(
-        classifier, anes_dataloader, extractor, representer, device=device, target_names=target_names
-    )
-    
-    # Save models
-    representer.save("models/bias_representer.pt")
-    classifier.save("models/anes_classifier.pt")
