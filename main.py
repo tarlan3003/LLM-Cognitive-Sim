@@ -22,11 +22,11 @@ from transformers import AutoTokenizer, AutoModel
 from tqdm import tqdm
 
 # Import custom modules
-from dataset import ProspectTheoryDataset, extract_legitimate_features
-from llm_extractor import HiddenLayerExtractor
-from bias_representer import CognitiveBiasRepresenter
-from anes_classifier import ProspectTheoryANESClassifier, FocalLoss, train_anes_classifier
-from utils import set_seed, create_directory_structure, ensure_dir
+from src.dataset import ProspectTheoryDataset, extract_legitimate_features
+from src.llm_extractor import HiddenLayerExtractor
+from src.bias_representer import CognitiveBiasRepresenter
+from src.anes_classifier import ProspectTheoryANESClassifier, FocalLoss, train_anes_classifier
+from src.utils import set_seed, create_directory_structure, ensure_dir
 
 # Set constants for best performance
 BEST_LLM_MODEL = "roberta-large"

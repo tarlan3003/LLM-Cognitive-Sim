@@ -1,786 +1,749 @@
 """
-Dataset handling for Prospect Theory LLM - Best Performing Version
+Dataset handling for Prospect Theory LLM Pipeline
 
-This module handles data loading, preprocessing, and feature extraction
-for both Prospect Theory and ANES datasets.
-
-Author: Tarlan Sultanov
+This module provides dataset classes for loading and processing data for the
+Prospect Theory LLM Pipeline, including both Prospect Theory training data
+and ANES classification data.
 """
 
 import os
 import json
 import torch
-import random
 import numpy as np
 import pandas as pd
-from torch.utils.data import Dataset
-from sklearn.preprocessing import StandardScaler
-from tqdm import tqdm
+import random
+from torch.utils.data import Dataset, DataLoader
+from transformers import AutoTokenizer
+from typing import Dict, List, Optional, Union, Tuple
+from collections import Counter
+
 
 class ProspectTheoryDataset(Dataset):
     """
-    Dataset class for Prospect Theory and ANES data.
+    Dataset for Prospect Theory training and ANES classification.
     
-    This class handles both:
-    1. Prospect Theory dataset with cognitive bias annotations
-    2. ANES dataset with voting preferences
+    This dataset handles both:
+    1. Prospect Theory training data with bias and system labels
+    2. ANES classification data with target labels
     """
     
-    def __init__(self, data_path, tokenizer, is_anes=False, max_length=128):
+    def __init__(
+        self, 
+        data_path: str, 
+        tokenizer, 
+        max_length: int = 512,
+        is_anes: bool = False,
+        text_key: str = "text",
+        generate_text_from_anes: bool = False
+    ):
         """
         Initialize the dataset.
         
         Args:
-            data_path: Path to the dataset JSON file
-            tokenizer: Tokenizer for encoding text
-            is_anes: Whether this is an ANES dataset
+            data_path: Path to the dataset file (CSV or JSON)
+            tokenizer: Tokenizer for the LLM
             max_length: Maximum sequence length for tokenization
+            is_anes: Whether this is ANES data (vs. Prospect Theory training data)
+            text_key: Key for text field in the data
+            generate_text_from_anes: Whether to generate text from ANES features
         """
-        self.data_path = data_path
+        self.data = self._load_data(data_path)
         self.tokenizer = tokenizer
-        self.is_anes = is_anes
         self.max_length = max_length
+        self.is_anes = is_anes
+        self.text_key = text_key
+        self.generate_text_from_anes = generate_text_from_anes
         
-        # Define bias types
-        self.bias_types = [
-            "loss_aversion", 
-            "framing_effect", 
-            "anchoring", 
-            "availability", 
-            "representativeness", 
-            "status_quo_bias"
-        ]
+        # Extract bias names if available
+        self.bias_names = self._get_bias_names()
         
-        # Load data
-        self.data = self._load_data()
+        print(f"Loaded dataset with {len(self.data)} examples")
+        if self.bias_names:
+            print(f"Found {len(self.bias_names)} bias types: {', '.join(self.bias_names)}")
+
+    def _load_data(self, data_path: str) -> List[Dict]:
+        """Load data from CSV or JSON file."""
+        if data_path.endswith('.csv'):
+            return pd.read_csv(data_path).to_dict(orient='records')
+        elif data_path.endswith('.json'):
+            with open(data_path, 'r') as f:
+                return json.load(f)
+        else:
+            raise ValueError(f"Unsupported file format: {data_path}")
+
+    def _get_bias_names(self) -> List[str]:
+        """Extract all bias names from the dataset."""
+        if not self.data:
+            return []
+        
+        # Assuming bias_labels is a dictionary in each data item
+        if 'bias_labels' in self.data[0] and isinstance(self.data[0]['bias_labels'], dict):
+            return list(self.data[0]['bias_labels'].keys())
+        return []
     
-    def _load_data(self):
+    def _generate_text_from_anes_features(self, features: Dict) -> str:
         """
-        Load data from JSON file.
+        Generate text prompt from ANES features.
         
-        Returns:
-            List of data samples
+        This is a simple implementation that can be enhanced with more
+        sophisticated text generation techniques.
         """
-        with open(self.data_path, 'r') as f:
-            data = json.load(f)
+        text = ""
         
-        return data
-    
-    def __len__(self):
-        """
-        Get dataset length.
-        
-        Returns:
-            Number of samples in the dataset
-        """
-        return len(self.data)
-    
-    def __getitem__(self, idx):
-        """
-        Get a dataset item.
-        
-        Args:
-            idx: Index of the item
+        # Add demographic information if available
+        for key, value in features.items():
+            if isinstance(value, (str, int, float)) and key != 'target':
+                text += f"{key}: {value}\n"
             
-        Returns:
-            Dictionary with encoded inputs and labels
-        """
+        # Add question
+        text += "Q: Who would this respondent vote for in a Harris vs Trump election?"
+        
+        return text
+
+    def __len__(self) -> int:
+        return len(self.data)
+
+    def __getitem__(self, idx: int) -> Dict:
         item = self.data[idx]
         
-        if self.is_anes:
-            # ANES dataset
-            text = item['text']
-            anes_features = torch.tensor(item['anes_features'], dtype=torch.float32)
-            target = torch.tensor(item['target'], dtype=torch.long)
-            
-            # Tokenize text
-            encoded = self.tokenizer(
-                text,
-                padding='max_length',
-                truncation=True,
-                max_length=self.max_length,
-                return_tensors='pt'
-            )
-            
-            # Remove batch dimension
-            input_ids = encoded['input_ids'].squeeze(0)
-            attention_mask = encoded['attention_mask'].squeeze(0)
-            
-            return {
-                'input_ids': input_ids,
-                'attention_mask': attention_mask,
-                'anes_features': anes_features,
-                'target': target
-            }
+        # Get or generate text
+        if self.generate_text_from_anes and self.is_anes:
+            text = self._generate_text_from_anes_features(item)
         else:
-            # Prospect Theory dataset
-            text = item['text']
-            bias_labels = torch.tensor(item['bias_labels'], dtype=torch.float32)
-            system_label = torch.tensor(item['system_label'], dtype=torch.long)
-            
-            # Tokenize text
-            encoded = self.tokenizer(
-                text,
-                padding='max_length',
-                truncation=True,
-                max_length=self.max_length,
-                return_tensors='pt'
-            )
-            
-            # Remove batch dimension
-            input_ids = encoded['input_ids'].squeeze(0)
-            attention_mask = encoded['attention_mask'].squeeze(0)
-            
-            return {
-                'input_ids': input_ids,
-                'attention_mask': attention_mask,
-                'bias_labels': bias_labels,
-                'system_label': system_label
-            }
-    
+            text = item.get(self.text_key, "")
+        
+        # Tokenize text
+        encoding = self.tokenizer(
+            text, 
+            truncation=True, 
+            padding='max_length', 
+            max_length=self.max_length, 
+            return_tensors='pt'
+        )
+        
+        result = {
+            'input_ids': encoding['input_ids'].squeeze(),
+            'attention_mask': encoding['attention_mask'].squeeze(),
+            'text': text  # Keep raw text for reference
+        }
+        
+        # Add bias labels if available
+            if 'bias_labels' in item and self.bias_names:
+                bias_labels_raw = item['bias_labels']
+                if isinstance(bias_labels_raw, dict):
+                    bias_labels = [float(bias_labels_raw.get(bias, 0.0)) for bias in self.bias_names]
+                elif isinstance(bias_labels_raw, list):
+                    bias_labels = [float(val) for val in bias_labels_raw]
+                else:
+                    # Fallback for unexpected format, though create_prospect_theory_dataset should prevent this
+                    print(f"Warning: Unexpected bias_labels format for item {idx}. Defaulting to zeros.")
+                    bias_labels = [0.0] * len(self.bias_names)
+                result['bias_labels'] = torch.tensor(bias_labels, dtype=torch.float32)
+        
+        # Add system label if available
+        if 'system_label' in item:
+            result['system_label'] = torch.tensor(item['system_label'], dtype=torch.long)
+        
+        # Add ANES features if available
+        if 'anes_features' in item:
+            if isinstance(item['anes_features'], list):
+                result['anes_features'] = torch.tensor(item['anes_features'], dtype=torch.float)
+            else:
+                # Handle case where anes_features is a dictionary
+                anes_features = []
+                for key in sorted(item['anes_features'].keys()):
+                    value = item['anes_features'][key]
+                    if isinstance(value, (int, float)):
+                        anes_features.append(value)
+                    elif isinstance(value, str) and value.isdigit():
+                        anes_features.append(float(value))
+                    elif isinstance(value, str):
+                        # One-hot encode categorical features
+                        if key + '_' + value not in item.get('_feature_mapping', {}):
+                            # Skip if not in feature mapping
+                            continue
+                        feature_idx = item['_feature_mapping'][key + '_' + value]
+                        anes_features.append(1.0 if feature_idx else 0.0)
+                result['anes_features'] = torch.tensor(anes_features, dtype=torch.float)
+        
+        # Add target if available
+        if 'target' in item:
+            result['target'] = torch.tensor(item['target'], dtype=torch.long)
+        
+        return result
+
     @staticmethod
-    def create_prospect_theory_dataset(output_path, num_samples=1000, seed=42):
+    def create_prospect_theory_dataset(
+        output_path: str,
+        num_examples: int = 100,
+        bias_names: List[str] = None,
+        system_probs: List[float] = None
+    ) -> List[Dict]:
         """
-        Create a synthetic Prospect Theory dataset for training.
+        Create a dummy Prospect Theory dataset for training.
         
         Args:
             output_path: Path to save the dataset
-            num_samples: Number of samples to generate
-            seed: Random seed for reproducibility
+            num_examples: Number of examples to generate
+            bias_names: List of bias names to include
+            system_probs: Probabilities of System 1 vs System 2 thinking
             
         Returns:
-            Path to the created dataset
+            List of generated examples
         """
-        random.seed(seed)
-        np.random.seed(seed)
-        
-        bias_types = [
-            "loss_aversion", 
-            "framing_effect", 
-            "anchoring", 
-            "availability", 
-            "representativeness", 
-            "status_quo_bias"
-        ]
-        
-        # Templates for different biases
-        templates = {
-            "loss_aversion": [
-                "I would rather avoid losing $X than gain $Y.",
-                "The potential loss of $X feels worse than the potential gain of $Y.",
-                "I'm more concerned about losing my current benefits than gaining new ones.",
-                "The risk of losing $X is too high, even if I might gain $Y.",
-                "I prefer to keep what I have rather than risk it for more."
-            ],
-            "framing_effect": [
-                "The program will save 200 lives out of 600 people.",
-                "The program will result in 400 deaths out of 600 people.",
-                "This policy has a 70% success rate.",
-                "This policy has a 30% failure rate.",
-                "The glass is half full with this approach."
-            ],
+        if bias_names is None:
+            bias_names = ["anchoring", "framing", "availability", "confirmation_bias", "loss_aversion"]
+            
+        if system_probs is None:
+            system_probs = [0.7, 0.3]  # Default: 70% System 1, 30% System 2
+            
+        # Scenarios for different biases
+        scenarios = {
             "anchoring": [
-                "The initial price was $X, so $Y seems like a good deal.",
-                "Compared to last year's budget of $X, this year's $Y is reasonable.",
-                "The first offer was $X, so I think $Y is fair.",
-                "Given that similar products cost around $X, this one at $Y is priced well.",
-                "Starting from the baseline of X, a change to Y isn't dramatic."
+                "When asked about the price of a new car, the respondent was first shown a luxury model priced at $80,000.",
+                "The survey first mentioned that the average American household spends $5,000 per year on healthcare.",
+                "Before asking about inflation expectations, the interviewer mentioned that inflation was 2% last year."
+            ],
+            "framing": [
+                "The policy was described as 'saving 200 lives' rather than 'letting 800 people die'.",
+                "The tax cut was framed as 'giving money back to taxpayers' rather than 'reducing government revenue'.",
+                "The candidate's position was described as 'supporting traditional values' rather than 'opposing progressive reforms'."
             ],
             "availability": [
-                "After seeing the news about X, I'm worried about Y happening to me.",
-                "I remember a vivid example of X, so I think Y is common.",
-                "Because I can easily recall X, I believe Y happens frequently.",
-                "The recent X incident makes me think Y is a major risk.",
-                "Stories about X make me overestimate the likelihood of Y."
+                "The respondent had recently seen news coverage of a violent crime in their neighborhood.",
+                "After a major hurricane, the respondent was asked about climate change concerns.",
+                "Having just read about a vaccine side effect, the respondent was asked about vaccine safety."
             ],
-            "representativeness": [
-                "She's an environmentalist, so she probably votes for Democrats.",
-                "He works in finance, so he's likely a Republican.",
-                "As a teacher, she must support education funding increases.",
-                "Being from Texas, he probably opposes gun control.",
-                "Since she's religious, she must be socially conservative."
+            "confirmation_bias": [
+                "The respondent, a lifelong Republican, was shown information about economic growth under Republican presidents.",
+                "A strong environmentalist was presented with data supporting renewable energy benefits.",
+                "A gun rights advocate was shown statistics about defensive gun use."
             ],
-            "status_quo_bias": [
-                "I prefer to keep our current healthcare system rather than try something new.",
-                "Let's stick with what we know works instead of experimenting.",
-                "The existing policy may have flaws, but at least we understand them.",
-                "I'd rather maintain our current approach than risk change.",
-                "The current system is familiar, so I'm hesitant to support alternatives."
+            "loss_aversion": [
+                "The respondent was told they would lose existing benefits rather than gain new ones.",
+                "The policy was described as increasing costs rather than reducing savings.",
+                "The investment option was framed in terms of potential losses rather than potential gains."
             ]
         }
         
-        # System 1 vs System 2 indicators
-        system_indicators = {
-            0: [  # System 1 (fast, intuitive)
-                "immediately felt", "instinctively", "my gut tells me", 
-                "without thinking", "intuitively", "first impression",
-                "emotional response", "quick reaction", "just feels right"
-            ],
-            1: [  # System 2 (slow, deliberative)
-                "after careful consideration", "analytically", "weighing the evidence",
-                "thinking it through", "deliberating", "upon reflection",
-                "logical analysis", "systematic evaluation", "reasoned judgment"
-            ]
-        }
-        
+        # Generate examples
         data = []
-        
-        for _ in range(num_samples):
-            # Randomly select primary bias type (with higher probability)
-            primary_bias = random.choice(bias_types)
+        for i in range(num_examples):
+            # Randomly select biases present in this example
+            present_biases = random.sample(bias_names, k=random.randint(1, 3))
             
-            # Generate bias labels (multi-label, with primary bias having higher value)
-            bias_labels = np.random.uniform(0.0, 0.3, len(bias_types))
-            primary_idx = bias_types.index(primary_bias)
-            bias_labels[primary_idx] = np.random.uniform(0.7, 1.0)
+            # Generate text from scenarios
+            text_parts = []
+            for bias in present_biases:
+                if bias in scenarios:
+                    text_parts.append(random.choice(scenarios[bias]))
             
-            # Randomly select system (0 = System 1, 1 = System 2)
-            system = random.randint(0, 1)
+            # Combine text parts
+            text = " ".join(text_parts)
             
-            # Generate text with bias and system indicators
-            template = random.choice(templates[primary_bias])
-            system_indicator = random.choice(system_indicators[system])
+            # Add context and question
+            text += "\n\nQ: How would this framing affect the respondent's decision?"
             
-            # Replace placeholders
-            text = template.replace("$X", str(random.randint(100, 1000)))
-            text = text.replace("$Y", str(random.randint(100, 1000)))
-            text = text.replace("X", random.choice(["terrorism", "crime", "accidents", "disease", "natural disasters"]))
-            text = text.replace("Y", random.choice(["terrorism", "crime", "accidents", "disease", "natural disasters"]))
+            # Create bias labels
+            bias_labels = {bias: 1 if bias in present_biases else 0 for bias in bias_names}
             
-            # Add system indicator
-            text = f"I {system_indicator} that {text}"
+            # Determine system (1 = System 1, 0 = System 2)
+            system_label = 0 if random.random() < system_probs[1] else 1
             
-            data.append({
+            # Create example
+            example = {
                 "text": text,
-                "bias_labels": bias_labels.tolist(),
-                "system_label": system
-            })
+                "bias_labels": bias_labels,
+                "system_label": system_label
+            }
+            
+            data.append(example)
         
-        # Save dataset
+        # Save to file
         os.makedirs(os.path.dirname(output_path), exist_ok=True)
         with open(output_path, 'w') as f:
-            json.dump(data, f)
+            json.dump(data, f, indent=2)
         
-        print(f"Created Prospect Theory dataset with {num_samples} samples at {output_path}")
-        return output_path
+        print(f"Created Prospect Theory dataset with {len(data)} examples at {output_path}")
+        
+        return data
+
+
+class ANESDataset(Dataset):
+    """
+    Dataset for ANES data using the same format as in the original notebook.
+    """
     
-    @staticmethod
-    def convert_anes_to_dataset(anes_path, output_path):
+    def __init__(self, texts, labels, tokenizer, max_len=256):
         """
-        Convert ANES JSON files to a dataset for the pipeline.
+        Initialize the dataset.
         
         Args:
-            anes_path: Path to ANES JSON files
-            output_path: Path to save the dataset
-            
-        Returns:
-            Path to the created dataset
+            texts: List of text inputs
+            labels: List of labels
+            tokenizer: Tokenizer for the LLM
+            max_len: Maximum sequence length for tokenization
         """
-        # Get all JSON files in the directory
-        json_files = [f for f in os.listdir(anes_path) if f.endswith('.json')]
-        
-        data = []
-        
-        for json_file in tqdm(json_files, desc="Processing ANES files"):
-            file_path = os.path.join(anes_path, json_file)
-            
-            try:
-                with open(file_path, 'r') as f:
-                    respondent = json.load(f)
-                
-                # Extract target variable (voting preference)
-                # V241049: WHO WOULD R VOTE FOR: HARRIS VS TRUMP
-                target = None
-                if 'V241049' in respondent:
-                    vote_preference = respondent['V241049']
-                    if vote_preference == 1:  # Donald Trump
-                        target = 0
-                    elif vote_preference == 2:  # Kamala Harris
-                        target = 1
-                
-                # Skip if target is missing
-                if target is None:
-                    continue
-                
-                # Extract legitimate features
-                anes_features = extract_legitimate_features(respondent)
-                
-                # Skip if features are missing
-                if anes_features is None:
-                    continue
-                
-                # Generate text description
-                text = generate_text_description(respondent, anes_features)
-                
-                data.append({
-                    "text": text,
-                    "anes_features": anes_features,
-                    "target": target
-                })
-            
-            except Exception as e:
-                print(f"Error processing {json_file}: {e}")
-        
-        # Save dataset
-        os.makedirs(os.path.dirname(output_path), exist_ok=True)
-        with open(output_path, 'w') as f:
-            json.dump(data, f)
-        
-        print(f"Created ANES dataset with {len(data)} samples at {output_path}")
-        return output_path
+        self.texts = list(texts)
+        self.labels = list(labels)
+        self.tokenizer = tokenizer
+        self.max_len = max_len
 
-def extract_legitimate_features(respondent):
-    """
-    Extract legitimate features from ANES respondent data.
-    
-    This function carefully selects features that don't leak the target variable.
-    
-    Args:
-        respondent: ANES respondent data
-        
-    Returns:
-        List of features
-    """
-    features = []
-    
-    try:
-        # Demographic features
-        # Age (V201507x)
-        if 'V201507x' in respondent:
-            age = respondent['V201507x']
-            if age > 0:
-                features.append(age / 100.0)  # Normalize age
-            else:
-                features.append(0.5)  # Default value
-        else:
-            features.append(0.5)  # Default value
-        
-        # Gender (V201600)
-        if 'V201600' in respondent:
-            gender = respondent['V201600']
-            features.append(1.0 if gender == 1 else 0.0)  # 1 = Male, 2 = Female
-        else:
-            features.append(0.5)  # Default value
-        
-        # Race (V201549x)
-        race_features = [0.0] * 5  # White, Black, Hispanic, Asian, Other
-        if 'V201549x' in respondent:
-            race = respondent['V201549x']
-            if race == 1:
-                race_features[0] = 1.0  # White
-            elif race == 2:
-                race_features[1] = 1.0  # Black
-            elif race == 3:
-                race_features[2] = 1.0  # Hispanic
-            elif race == 4:
-                race_features[3] = 1.0  # Asian
-            else:
-                race_features[4] = 1.0  # Other
-        else:
-            race_features[4] = 1.0  # Default to Other
-        features.extend(race_features)
-        
-        # Education (V201510)
-        education_features = [0.0] * 5  # <HS, HS, Some college, Bachelor's, Graduate
-        if 'V201510' in respondent:
-            education = respondent['V201510']
-            if education <= 8:
-                education_features[0] = 1.0  # Less than high school
-            elif education <= 10:
-                education_features[1] = 1.0  # High school
-            elif education <= 12:
-                education_features[2] = 1.0  # Some college
-            elif education == 13:
-                education_features[3] = 1.0  # Bachelor's
-            elif education >= 14:
-                education_features[4] = 1.0  # Graduate
-        else:
-            education_features[2] = 1.0  # Default to Some college
-        features.extend(education_features)
-        
-        # Income (V202469x)
-        if 'V202469x' in respondent:
-            income = respondent['V202469x']
-            if income > 0:
-                features.append(min(income / 30.0, 1.0))  # Normalize income
-            else:
-                features.append(0.5)  # Default value
-        else:
-            features.append(0.5)  # Default value
-        
-        # Marital status (V201508)
-        marital_features = [0.0] * 5  # Married, Widowed, Divorced, Separated, Never married
-        if 'V201508' in respondent:
-            marital = respondent['V201508']
-            if marital == 1:
-                marital_features[0] = 1.0  # Married
-            elif marital == 2:
-                marital_features[1] = 1.0  # Widowed
-            elif marital == 3:
-                marital_features[2] = 1.0  # Divorced
-            elif marital == 4:
-                marital_features[3] = 1.0  # Separated
-            elif marital == 5:
-                marital_features[4] = 1.0  # Never married
-        else:
-            marital_features[0] = 1.0  # Default to Married
-        features.extend(marital_features)
-        
-        # Region (V203003)
-        region_features = [0.0] * 4  # Northeast, Midwest, South, West
-        if 'V203003' in respondent:
-            region = respondent['V203003']
-            if region == 1:
-                region_features[0] = 1.0  # Northeast
-            elif region == 2:
-                region_features[1] = 1.0  # Midwest
-            elif region == 3:
-                region_features[2] = 1.0  # South
-            elif region == 4:
-                region_features[3] = 1.0  # West
-        else:
-            region_features[2] = 1.0  # Default to South
-        features.extend(region_features)
-        
-        # Urban/rural (V203004)
-        urban_features = [0.0] * 3  # Urban, Suburban, Rural
-        if 'V203004' in respondent:
-            urban = respondent['V203004']
-            if urban == 1:
-                urban_features[0] = 1.0  # Urban
-            elif urban == 2:
-                urban_features[1] = 1.0  # Suburban
-            elif urban == 3:
-                urban_features[2] = 1.0  # Rural
-        else:
-            urban_features[1] = 1.0  # Default to Suburban
-        features.extend(urban_features)
-        
-        # Economic features
-        
-        # Economic condition (V201339)
-        if 'V201339' in respondent:
-            econ = respondent['V201339']
-            if econ > 0 and econ <= 5:
-                features.append((6 - econ) / 5.0)  # Normalize and invert (higher = better)
-            else:
-                features.append(0.5)  # Default value
-        else:
-            features.append(0.5)  # Default value
-        
-        # Personal financial situation (V201340)
-        if 'V201340' in respondent:
-            finance = respondent['V201340']
-            if finance > 0 and finance <= 5:
-                features.append((6 - finance) / 5.0)  # Normalize and invert (higher = better)
-            else:
-                features.append(0.5)  # Default value
-        else:
-            features.append(0.5)  # Default value
-        
-        # Employment status (V201562x)
-        employment_features = [0.0] * 4  # Working, Temporarily laid off, Unemployed, Not in labor force
-        if 'V201562x' in respondent:
-            employment = respondent['V201562x']
-            if employment == 1:
-                employment_features[0] = 1.0  # Working
-            elif employment == 2:
-                employment_features[1] = 1.0  # Temporarily laid off
-            elif employment == 3:
-                employment_features[2] = 1.0  # Unemployed
-            elif employment >= 4:
-                employment_features[3] = 1.0  # Not in labor force
-        else:
-            employment_features[0] = 1.0  # Default to Working
-        features.extend(employment_features)
-        
-        # Policy views (avoiding direct political leakage)
-        
-        # Healthcare (V201333)
-        if 'V201333' in respondent:
-            healthcare = respondent['V201333']
-            if healthcare > 0 and healthcare <= 7:
-                features.append(healthcare / 7.0)  # Normalize
-            else:
-                features.append(0.5)  # Default value
-        else:
-            features.append(0.5)  # Default value
-        
-        # Immigration (V201334)
-        if 'V201334' in respondent:
-            immigration = respondent['V201334']
-            if immigration > 0 and immigration <= 7:
-                features.append(immigration / 7.0)  # Normalize
-            else:
-                features.append(0.5)  # Default value
-        else:
-            features.append(0.5)  # Default value
-        
-        # Gun policy (V201335)
-        if 'V201335' in respondent:
-            guns = respondent['V201335']
-            if guns > 0 and guns <= 7:
-                features.append(guns / 7.0)  # Normalize
-            else:
-                features.append(0.5)  # Default value
-        else:
-            features.append(0.5)  # Default value
-        
-        # Abortion (V201336)
-        if 'V201336' in respondent:
-            abortion = respondent['V201336']
-            if abortion > 0 and abortion <= 4:
-                features.append(abortion / 4.0)  # Normalize
-            else:
-                features.append(0.5)  # Default value
-        else:
-            features.append(0.5)  # Default value
-        
-        # Climate change (V201337)
-        if 'V201337' in respondent:
-            climate = respondent['V201337']
-            if climate > 0 and climate <= 4:
-                features.append(climate / 4.0)  # Normalize
-            else:
-                features.append(0.5)  # Default value
-        else:
-            features.append(0.5)  # Default value
-        
-        # COVID-19 concerns (V201624)
-        if 'V201624' in respondent:
-            covid = respondent['V201624']
-            if covid > 0 and covid <= 5:
-                features.append(covid / 5.0)  # Normalize
-            else:
-                features.append(0.5)  # Default value
-        else:
-            features.append(0.5)  # Default value
-        
-        # Media consumption
-        
-        # TV news (V201631x)
-        if 'V201631x' in respondent:
-            tv_news = respondent['V201631x']
-            if tv_news >= 0:
-                features.append(min(tv_news / 7.0, 1.0))  # Normalize
-            else:
-                features.append(0.5)  # Default value
-        else:
-            features.append(0.5)  # Default value
-        
-        # Internet news (V201633x)
-        if 'V201633x' in respondent:
-            internet_news = respondent['V201633x']
-            if internet_news >= 0:
-                features.append(min(internet_news / 7.0, 1.0))  # Normalize
-            else:
-                features.append(0.5)  # Default value
-        else:
-            features.append(0.5)  # Default value
-        
-        # Social media use (V201637x)
-        if 'V201637x' in respondent:
-            social_media = respondent['V201637x']
-            if social_media >= 0:
-                features.append(min(social_media / 7.0, 1.0))  # Normalize
-            else:
-                features.append(0.5)  # Default value
-        else:
-            features.append(0.5)  # Default value
-        
-        # Psychological traits
-        
-        # Social trust (V201233)
-        if 'V201233' in respondent:
-            trust = respondent['V201233']
-            if trust > 0 and trust <= 5:
-                features.append(trust / 5.0)  # Normalize
-            else:
-                features.append(0.5)  # Default value
-        else:
-            features.append(0.5)  # Default value
-        
-        # Authoritarianism (V202263)
-        if 'V202263' in respondent:
-            auth = respondent['V202263']
-            if auth > 0 and auth <= 5:
-                features.append(auth / 5.0)  # Normalize
-            else:
-                features.append(0.5)  # Default value
-        else:
-            features.append(0.5)  # Default value
-        
-        # Need for cognition (V202264)
-        if 'V202264' in respondent:
-            cognition = respondent['V202264']
-            if cognition > 0 and cognition <= 5:
-                features.append(cognition / 5.0)  # Normalize
-            else:
-                features.append(0.5)  # Default value
-        else:
-            features.append(0.5)  # Default value
-        
-        # Risk aversion (V202265)
-        if 'V202265' in respondent:
-            risk = respondent['V202265']
-            if risk > 0 and risk <= 5:
-                features.append(risk / 5.0)  # Normalize
-            else:
-                features.append(0.5)  # Default value
-        else:
-            features.append(0.5)  # Default value
-        
-        # Altruism (V202266)
-        if 'V202266' in respondent:
-            altruism = respondent['V202266']
-            if altruism > 0 and altruism <= 5:
-                features.append(altruism / 5.0)  # Normalize
-            else:
-                features.append(0.5)  # Default value
-        else:
-            features.append(0.5)  # Default value
-        
-        # Feature engineering: Interaction terms
-        
-        # Age * Education interaction
-        features.append(features[0] * features[7])  # Age * Bachelor's or higher
-        
-        # Income * Region interaction
-        features.append(features[11] * features[17])  # Income * South
-        
-        # Urban * Policy views interaction
-        features.append(features[20] * features[28])  # Urban * Climate change
-        
-        # Risk aversion * Economic condition interaction
-        features.append(features[34] * features[24])  # Risk aversion * Economic condition
-        
-        # Ensure all features are valid
-        for i, f in enumerate(features):
-            if not isinstance(f, (int, float)) or np.isnan(f) or np.isinf(f):
-                features[i] = 0.5  # Replace invalid values
-        
-        return features
-    
-    except Exception as e:
-        print(f"Error extracting features: {e}")
-        return None
+    def __len__(self):
+        return len(self.labels)
 
-def generate_text_description(respondent, features):
+    def __getitem__(self, idx):
+        enc = self.tokenizer(
+            self.texts[idx],
+            truncation=True,
+            padding="max_length",
+            max_length=self.max_len,
+            return_tensors="pt",
+        )
+
+        return {
+            "input_ids": enc["input_ids"].squeeze(0).long(),
+            "attention_mask": enc["attention_mask"].squeeze(0).float(),
+            "labels": torch.tensor(self.labels[idx], dtype=torch.long),
+        }
+
+
+def extract_legitimate_features(responses):
     """
-    Generate a text description of the respondent based on features.
+    Extract only legitimate, non-leaky features from the responses.
     
-    Args:
-        respondent: ANES respondent data
-        features: Extracted features
-        
-    Returns:
-        Text description
+    Enhanced with more features and feature engineering.
     """
-    # Age
-    age_value = int(features[0] * 100)
-    if age_value < 30:
-        age_desc = "young adult"
-    elif age_value < 50:
-        age_desc = "middle-aged adult"
-    else:
-        age_desc = "older adult"
+    features = {}
     
-    # Gender
-    gender_desc = "male" if features[1] > 0.5 else "female"
+    # Helper to extract response safely
+    def extract_response(responses, code):
+        for r in responses:
+            if r["variable_code"] == code:
+                ans = r.get("respondent_answer")
+                if ans in ['Inapplicable', 'Refused', "Don't know", 'Error']:
+                    return "NA"
+                return str(ans)
+        return "NA"
     
-    # Race
-    race_idx = np.argmax(features[2:7])
-    race_descs = ["white", "Black", "Hispanic", "Asian", "of other racial background"]
-    race_desc = race_descs[race_idx]
+    # Demographic features
+    features["age"] = extract_response(responses, "V201507x")  # Age
+    features["gender"] = extract_response(responses, "V201600")  # Gender
+    features["education"] = extract_response(responses, "V201510")  # Education level
+    features["income"] = extract_response(responses, "V201617x")  # Income
+    features["race"] = extract_response(responses, "V201549x")  # Race/ethnicity
     
-    # Education
-    edu_idx = np.argmax(features[7:12])
-    edu_descs = ["with less than high school education", 
-                "with high school education", 
-                "with some college education", 
-                "with a bachelor's degree", 
-                "with graduate education"]
-    edu_desc = edu_descs[edu_idx]
-    
-    # Income
-    income_value = features[12] * 30
-    if income_value < 5:
-        income_desc = "low-income"
-    elif income_value < 15:
-        income_desc = "middle-income"
-    else:
-        income_desc = "high-income"
-    
-    # Region
-    region_idx = np.argmax(features[18:22])
-    region_descs = ["Northeast", "Midwest", "South", "West"]
-    region_desc = region_descs[region_idx]
-    
-    # Urban/rural
-    urban_idx = np.argmax(features[22:25])
-    urban_descs = ["urban", "suburban", "rural"]
-    urban_desc = urban_descs[urban_idx]
+    # Political engagement
+    features["political_interest"] = extract_response(responses, "V241004")  # Political interest
+    features["campaign_interest"] = extract_response(responses, "V241005")   # Campaign interest
+    features["voter_registration"] = extract_response(responses, "V241001")  # Voter registration
+    features["voting_frequency"] = extract_response(responses, "V241002")    # How often votes
     
     # Economic views
-    econ_value = features[25]
-    if econ_value < 0.4:
-        econ_desc = "pessimistic about the economy"
-    elif econ_value < 0.7:
-        econ_desc = "neutral about the economy"
+    features["economic_views"] = extract_response(responses, "V241127")  # Economic views
+    features["economy_better_worse"] = extract_response(responses, "V241111")  # Economy better/worse
+    features["personal_finance"] = extract_response(responses, "V241112")  # Personal financial situation
+    
+    # Geographic information
+    features["state"] = extract_response(responses, "V241017")  # State
+    features["urban_rural"] = extract_response(responses, "V241018")  # Urban/rural
+    
+    # Media consumption
+    features["media_consumption"] = extract_response(responses, "V241201")  # Media consumption
+    features["social_media_use"] = extract_response(responses, "V241242")  # Social media use
+    features["news_interest"] = extract_response(responses, "V241211")  # News interest
+    
+    # Policy views (non-partisan)
+    features["immigration_importance"] = extract_response(responses, "V241310")  # Immigration importance
+    features["healthcare_importance"] = extract_response(responses, "V241311")  # Healthcare importance
+    features["economy_importance"] = extract_response(responses, "V241312")  # Economy importance
+    features["covid_importance"] = extract_response(responses, "V241313")  # COVID importance
+    
+    # Feature engineering
+    # Convert categorical features to numeric where possible
+    try:
+        if features["political_interest"] not in ["NA"]:
+            features["political_interest_num"] = float(features["political_interest"])
+    except:
+        features["political_interest_num"] = 0.0
+        
+    try:
+        if features["campaign_interest"] not in ["NA"]:
+            features["campaign_interest_num"] = float(features["campaign_interest"])
+    except:
+        features["campaign_interest_num"] = 0.0
+    
+    # Create interaction features
+    if features["political_interest_num"] > 0 and features["campaign_interest_num"] > 0:
+        features["political_engagement"] = features["political_interest_num"] * features["campaign_interest_num"]
     else:
-        econ_desc = "optimistic about the economy"
+        features["political_engagement"] = 0.0
     
-    # Policy views
-    policy_values = features[28:31]
-    policy_idx = np.argmax(policy_values)
-    policy_strength = policy_values[policy_idx]
+    # Convert features to a single text representation
+    input_text = (
+        f"Age: {features['age']}\n"
+        f"Gender: {features['gender']}\n"
+        f"Education: {features['education']}\n"
+        f"Income: {features['income']}\n"
+        f"Race: {features['race']}\n"
+        f"Political interest: {features['political_interest']}\n"
+        f"Campaign interest: {features['campaign_interest']}\n"
+        f"Voter registration: {features['voter_registration']}\n"
+        f"Voting frequency: {features['voting_frequency']}\n"
+        f"Economic views: {features['economic_views']}\n"
+        f"Economy better/worse: {features['economy_better_worse']}\n"
+        f"Personal finance: {features['personal_finance']}\n"
+        f"State: {features['state']}\n"
+        f"Urban/rural: {features['urban_rural']}\n"
+        f"Media consumption: {features['media_consumption']}\n"
+        f"Social media use: {features['social_media_use']}\n"
+        f"News interest: {features['news_interest']}\n"
+        f"Immigration importance: {features['immigration_importance']}\n"
+        f"Healthcare importance: {features['healthcare_importance']}\n"
+        f"Economy importance: {features['economy_importance']}\n"
+        f"COVID importance: {features['covid_importance']}\n"
+        f"Q: Who would this respondent vote for in a Harris vs Trump election?"
+    )
     
-    if policy_idx == 0:
-        if policy_strength > 0.7:
-            policy_desc = "strongly concerned about climate change"
-        else:
-            policy_desc = "somewhat concerned about climate change"
-    elif policy_idx == 1:
-        if policy_strength > 0.7:
-            policy_desc = "strongly concerned about COVID-19"
-        else:
-            policy_desc = "somewhat concerned about COVID-19"
-    else:
-        if policy_strength > 0.7:
-            policy_desc = "highly engaged with news media"
-        else:
-            policy_desc = "moderately engaged with news media"
+    return input_text, features
+
+
+def load_data(data_folder, variable_code, exclude_classes=None, include_classes=None):
+    """
+    Loads question-response pairs for a given ANES variable code.
+    Uses only legitimate features that don't leak the outcome.
     
-    # Psychological traits
-    psych_values = features[32:36]
-    psych_idx = np.argmax(psych_values)
-    psych_strength = psych_values[psych_idx]
+    This function is kept identical to the original implementation.
+    """
+    examples = []
+    label_map = {}
+    next_label_id = 0
+    features_data = []
+
+    excluded_count = 0
+    included_count = 0
+    missing_answer_count = 0
+    not_included_count = 0
+    matched_count = 0
+
+    if exclude_classes is None:
+        exclude_classes = ['Inapplicable', 'Refused', "Don't know", 'Error', "Don't know"]
+
+    json_files = [f for f in os.listdir(data_folder) if f.endswith('.json')]
+    print(f"Processing {len(json_files)} JSON files for variable {variable_code}")
+
+    for i, fname in enumerate(json_files):
+        if i % 500 == 0:
+            print(f"Progress: {i}/{len(json_files)} files processed")
+
+        try:
+            with open(os.path.join(data_folder, fname)) as f:
+                respondent = json.load(f)
+        except (json.JSONDecodeError, FileNotFoundError):
+            continue
+
+        responses = respondent.get("responses", [])
+        found = False
+        for item in responses:
+            if item.get("variable_code") != variable_code:
+                continue
+
+            question = item.get("full_question_text", "")
+            possible_answers = [opt["text"] for opt in item.get("possible_answers", [])]
+            respondent_answer = item.get("respondent_answer", None)
+
+            if not respondent_answer:
+                missing_answer_count += 1
+                continue
+
+            if respondent_answer in exclude_classes:
+                excluded_count += 1
+                continue
+
+            if include_classes and respondent_answer not in include_classes:
+                not_included_count += 1
+                continue
+
+            included_count += 1
+
+            if respondent_answer not in label_map:
+                label_map[respondent_answer] = next_label_id
+                next_label_id += 1
+            label = label_map[respondent_answer]
+
+            # Extract legitimate features instead of leaky ones
+            input_text, features = extract_legitimate_features(responses)
+            
+            examples.append((input_text, label))
+            features_data.append(features)
+            matched_count += 1
+            found = True
+            break  # Only use first match per respondent
+
+    # Summary logging
+    print(f"\n📊 Summary for variable {variable_code}:")
+    print(f"  ➤ Total JSON files: {len(json_files)}")
+    print(f"  ➤ Valid examples collected: {matched_count}")
+    print(f"  ➤ Unique labels: {len(label_map)}")
+    print(f"  ➤ Skipped due to missing answers: {missing_answer_count}")
+    print(f"  ➤ Skipped due to exclusion list: {excluded_count}")
+    print(f"  ➤ Skipped (not in include_classes): {not_included_count}")
+    if include_classes:
+        print(f"  ➤ Included only: {include_classes}")
+    print(f"  ➤ Final label map: {label_map}")
+
+    # Class distribution
+    label_counts = Counter([label for _, label in examples])
+    print("\n🔍 Class distribution (label IDs):", label_counts)
+    for label, count in label_counts.items():
+        for key, val in label_map.items():
+            if val == label:
+                print(f"  ➤ '{key}': {count} samples")
+
+    return examples, label_map, features_data
+
+
+def convert_anes_to_dataset(
+    json_folder: str,
+    output_path: str,
+    target_variable: str = "V241049",
+    include_classes: List[str] = None,
+    feature_codes: List[str] = None
+):
+    """
+    Convert ANES JSON files to a dataset for the pipeline.
     
-    if psych_idx == 0:
-        if psych_strength > 0.7:
-            psych_desc = "high social trust"
-        else:
-            psych_desc = "moderate social trust"
-    elif psych_idx == 1:
-        if psych_strength > 0.7:
-            psych_desc = "strong authoritarian tendencies"
-        else:
-            psych_desc = "moderate authoritarian tendencies"
-    elif psych_idx == 2:
-        if psych_strength > 0.7:
-            psych_desc = "high need for cognition"
-        else:
-            psych_desc = "moderate need for cognition"
-    else:
-        if psych_strength > 0.7:
-            psych_desc = "high risk aversion"
-        else:
-            psych_desc = "moderate risk aversion"
+    Args:
+        json_folder: Folder containing ANES JSON files
+        output_path: Path to save the dataset
+        target_variable: Variable code for the target
+        include_classes: List of classes to include
+        feature_codes: List of feature codes to include
+    """
+    if include_classes is None:
+        include_classes = ["Donald Trump", "Kamala Harris"]
+        
+    if feature_codes is None:
+        # Default legitimate features that don't leak the outcome
+        feature_codes = [
+            "V201507x",  # Age
+            "V201600",   # Gender
+            "V201510",   # Education level
+            "V201617x",  # Income
+            "V201549x",  # Race/ethnicity
+            "V241004",   # Political interest
+            "V241005",   # Campaign interest
+            "V241001",   # Voter registration
+            "V241002",   # Voting frequency
+            "V241127",   # Economic views
+            "V241111",   # Economy better/worse
+            "V241112",   # Personal financial situation
+            "V241017",   # State
+            "V241018",   # Urban/rural
+            "V241201",   # Media consumption
+            "V241242",   # Social media use
+            "V241211",   # News interest
+            "V241310",   # Immigration importance
+            "V241311",   # Healthcare importance
+            "V241312",   # Economy importance
+            "V241313",   # COVID importance
+        ]
     
-    # Combine into a description
-    description = f"This respondent is a {age_desc} {gender_desc} who is {race_desc} {edu_desc}. "
-    description += f"They are {income_desc} and live in a {urban_desc} area in the {region_desc}. "
-    description += f"They are {econ_desc} and {policy_desc}. "
-    description += f"Psychologically, they show {psych_desc}."
+    # Load data using the original function
+    examples, label_map, features_data = load_data(
+        json_folder, target_variable, include_classes=include_classes
+    )
     
-    return description
+    # Process features for one-hot encoding
+    categorical_features = set()
+    for features in features_data:
+        for key, value in features.items():
+            if isinstance(value, str) and not value.isdigit() and value != "NA":
+                categorical_features.add(key + '_' + value)
+    
+    # Create feature mapping
+    feature_mapping = {feature: i for i, feature in enumerate(sorted(categorical_features))}
+    
+    # Convert to the format expected by ProspectTheoryDataset
+    data = []
+    for (text, label), features in zip(examples, features_data):
+        # Add feature mapping to each example
+        features['_feature_mapping'] = feature_mapping
+        
+        data.append({
+            'text': text,
+            'anes_features': features,
+            'target': label
+        })
+    
+    # Save to file
+    os.makedirs(os.path.dirname(output_path), exist_ok=True)
+    with open(output_path, 'w') as f:
+        json.dump(data, f, indent=2)
+    
+    print(f"Created ANES dataset with {len(data)} examples at {output_path}")
+    print(f"Target distribution: {Counter([d['target'] for d in data])}")
+    print(f"Number of features: {len(feature_mapping) + sum(1 for f in features_data[0] if isinstance(features_data[0][f], (int, float)))}")
+    
+    return data
+
+
+def get_dataloaders(
+    prospect_data_path: str,
+    anes_data_path: str,
+    tokenizer,
+    batch_size: int = 16,
+    prospect_val_split: float = 0.2,
+    anes_val_split: float = 0.2
+) -> Tuple[DataLoader, DataLoader, DataLoader, DataLoader]:
+    """
+    Get dataloaders for Prospect Theory and ANES datasets.
+    
+    Args:
+        prospect_data_path: Path to Prospect Theory dataset
+        anes_data_path: Path to ANES dataset
+        tokenizer: Tokenizer for the LLM
+        batch_size: Batch size for dataloaders
+        prospect_val_split: Validation split for Prospect Theory dataset
+        anes_val_split: Validation split for ANES dataset
+        
+    Returns:
+        Tuple of (prospect_train_loader, prospect_val_loader, anes_train_loader, anes_val_loader)
+    """
+    # Load Prospect Theory dataset
+    prospect_dataset = ProspectTheoryDataset(prospect_data_path, tokenizer)
+    
+    # Split into train/val
+    prospect_train_size = int((1 - prospect_val_split) * len(prospect_dataset))
+    prospect_val_size = len(prospect_dataset) - prospect_train_size
+    
+    prospect_train_dataset, prospect_val_dataset = torch.utils.data.random_split(
+        prospect_dataset, [prospect_train_size, prospect_val_size]
+    )
+    
+    # Create dataloaders
+    prospect_train_loader = DataLoader(
+        prospect_train_dataset, batch_size=batch_size, shuffle=True
+    )
+    prospect_val_loader = DataLoader(
+        prospect_val_dataset, batch_size=batch_size
+    )
+    
+    # Load ANES dataset
+    anes_dataset = ProspectTheoryDataset(anes_data_path, tokenizer, is_anes=True)
+    
+    # Split into train/val
+    anes_train_size = int((1 - anes_val_split) * len(anes_dataset))
+    anes_val_size = len(anes_dataset) - anes_train_size
+    
+    anes_train_dataset, anes_val_dataset = torch.utils.data.random_split(
+        anes_dataset, [anes_train_size, anes_val_size]
+    )
+    
+    # Create dataloaders
+    anes_train_loader = DataLoader(
+        anes_train_dataset, batch_size=batch_size, shuffle=True
+    )
+    anes_val_loader = DataLoader(
+        anes_val_dataset, batch_size=batch_size
+    )
+    
+    return prospect_train_loader, prospect_val_loader, anes_train_loader, anes_val_loader
+
+
+if __name__ == "__main__":
+    # Example usage
+    import os
+    from transformers import RobertaTokenizer
+    
+    # Create dummy dataset
+    os.makedirs("data/prospect_theory", exist_ok=True)
+    ProspectTheoryDataset.create_prospect_theory_dataset(
+        "data/prospect_theory/dummy.json", num_examples=10
+    )
+    
+    # Load tokenizer and dataset
+    tokenizer = RobertaTokenizer.from_pretrained("roberta-base")
+    dataset = ProspectTheoryDataset("data/prospect_theory/dummy.json", tokenizer)
+    
+    # Print first example
+    print(dataset[0])
+
+
+    @staticmethod
+    def convert_anes_to_dataset(input_dir: str, output_path: str):
+        """
+        Converts raw ANES JSON files into a structured dataset for the pipeline.
+        
+        Args:
+            input_dir: Directory containing raw ANES JSON files.
+            output_path: Path to save the processed ANES dataset.
+        """
+        processed_data = []
+        anes_files = [f for f in os.listdir(input_dir) if f.endswith(".json")]
+        
+        # Define the target variable code
+        target_variable_code = "V241049" # WHO WOULD R VOTE FOR: HARRIS VS TRUMP
+        
+        for filename in tqdm(anes_files, desc="Processing ANES files"):
+            filepath = os.path.join(input_dir, filename)
+            with open(filepath, "r") as f:
+                respondent_data = json.load(f)
+            
+            # Extract legitimate features
+            features = extract_legitimate_features(respondent_data["responses"])
+            
+            # Extract target variable
+            target = None
+            for response in respondent_data["responses"]:
+                if response["variable_code"] == target_variable_code:
+                    # Map target values: 1 for Trump, 0 for Harris
+                    if response["respondent_answer"] == "Donald Trump":
+                        target = 1
+                    elif response["respondent_answer"] == "Kamala Harris":
+                        target = 0
+                    break
+            
+            if target is not None:
+                processed_data.append({
+                    "anes_features": features, # Keep features as dict for now
+                    "target": target
+                })
+        
+        # Convert categorical features in anes_features to numerical using one-hot encoding
+        # This step ensures all anes_features are numerical before being passed to the model
+        if processed_data:
+            df = pd.DataFrame(processed_data)
+            
+            # Separate target and features
+            targets = df["target"]
+            features_df = pd.json_normalize(df["anes_features"])
+            
+            # Identify categorical columns (object type)
+            categorical_cols = features_df.select_dtypes(include=["object"]).columns
+            
+            # Apply one-hot encoding
+            features_df_encoded = pd.get_dummies(features_df, columns=categorical_cols, prefix=categorical_cols)
+            
+            # Ensure all columns are numeric (convert remaining non-numeric to float, coercing errors)
+            for col in features_df_encoded.columns:
+                features_df_encoded[col] = pd.to_numeric(features_df_encoded[col], errors=\'coerce\').fillna(0.0)
+            
+            # Recombine and convert back to list of dicts
+            final_processed_data = []
+            for i in range(len(features_df_encoded)):
+                row_dict = features_df_encoded.iloc[i].to_dict()
+                row_dict["target"] = targets.iloc[i]
+                final_processed_data.append(row_dict)
+            
+            # Save to file
+            os.makedirs(os.path.dirname(output_path), exist_ok=True)
+            with open(output_path, "w") as f:
+                json.dump(final_processed_data, f, indent=2)
+            print(f"Converted ANES data saved to {output_path} with {len(final_processed_data)} examples.")
+        else:
+            print("No ANES data processed.")
+
+
+
+
