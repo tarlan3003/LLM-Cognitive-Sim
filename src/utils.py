@@ -1,42 +1,18 @@
 """
-Utility functions for the Prospect Theory LLM Pipeline.
+Utility functions for Prospect Theory LLM - Best Performing Version
 
-This module provides utility functions for the Prospect Theory LLM Pipeline,
-including directory creation, seed setting, and other helper functions.
+This module provides utility functions for the Prospect Theory LLM pipeline.
+
+Author: Tarlan Sultanov
 """
 
 import os
 import random
 import numpy as np
 import torch
-from typing import Optional
-
-
-def create_directory_structure(
-    data_dir: str = "data",
-    model_dir: str = "models",
-    output_dir: str = "results"
-):
-    """
-    Create the directory structure for the Prospect Theory LLM Pipeline.
-    
-    Args:
-        data_dir: Directory for data
-        model_dir: Directory for models
-        output_dir: Directory for outputs
-    """
-    # Create data directories
-    os.makedirs(os.path.join(data_dir, "prospect_theory"), exist_ok=True)
-    os.makedirs(os.path.join(data_dir, "anes"), exist_ok=True)
-    
-    # Create model directory
-    os.makedirs(model_dir, exist_ok=True)
-    
-    # Create output directory
-    os.makedirs(output_dir, exist_ok=True)
-    
-    print(f"Created directory structure: {data_dir}, {model_dir}, {output_dir}")
-
+import matplotlib.pyplot as plt
+import seaborn as sns
+from typing import List, Dict, Tuple, Optional, Union
 
 def set_seed(seed: int = 42):
     """
@@ -48,185 +24,451 @@ def set_seed(seed: int = 42):
     random.seed(seed)
     np.random.seed(seed)
     torch.manual_seed(seed)
-    if torch.cuda.is_available():
-        torch.cuda.manual_seed(seed)
-        torch.cuda.manual_seed_all(seed)
-        torch.backends.cudnn.deterministic = True
-        torch.backends.cudnn.benchmark = False
-    
-    print(f"Set random seed to {seed}")
+    torch.cuda.manual_seed_all(seed)
+    torch.backends.cudnn.deterministic = True
+    torch.backends.cudnn.benchmark = False
 
-
-def get_pytorch_version() -> str:
+def ensure_dir(directory: str):
     """
-    Get the PyTorch version.
-    
-    Returns:
-        PyTorch version string
-    """
-    return torch.__version__
-
-
-def check_compatibility():
-    """
-    Check compatibility of the environment.
-    
-    Returns:
-        Dictionary of compatibility information
-    """
-    import platform
-    import sys
-    
-    return {
-        "python_version": platform.python_version(),
-        "pytorch_version": get_pytorch_version(),
-        "cuda_available": torch.cuda.is_available(),
-        "cuda_version": torch.version.cuda if torch.cuda.is_available() else None,
-        "system": platform.system(),
-        "release": platform.release(),
-        "machine": platform.machine()
-    }
-
-
-def get_available_models():
-    """
-    Get a list of recommended models for the pipeline.
-    
-    Returns:
-        Dictionary of recommended models with descriptions
-    """
-    return {
-        "roberta-base": "Smaller model, faster training, less memory usage",
-        "roberta-large": "Larger model, better performance, more memory usage",
-        "microsoft/deberta-v3-base": "Modern architecture, excellent performance",
-        "microsoft/deberta-v3-large": "State-of-the-art performance, high memory usage",
-        "bert-base-uncased": "Classic model, widely used, moderate performance",
-        "bert-large-uncased": "Larger classic model, better performance"
-    }
-
-
-def get_memory_usage():
-    """
-    Get current memory usage.
-    
-    Returns:
-        Dictionary of memory usage information
-    """
-    import psutil
-    
-    process = psutil.Process(os.getpid())
-    memory_info = process.memory_info()
-    
-    return {
-        "rss": memory_info.rss / (1024 ** 2),  # RSS in MB
-        "vms": memory_info.vms / (1024 ** 2),  # VMS in MB
-        "percent": process.memory_percent()
-    }
-
-
-def estimate_model_memory(model_name: str) -> float:
-    """
-    Estimate memory usage for a model.
+    Ensure directory exists.
     
     Args:
-        model_name: Name of the model
-        
-    Returns:
-        Estimated memory usage in GB
+        directory: Directory path
     """
-    # Rough estimates based on model size
-    memory_estimates = {
-        "roberta-base": 0.5,
-        "roberta-large": 1.5,
-        "microsoft/deberta-v3-base": 0.7,
-        "microsoft/deberta-v3-large": 2.0,
-        "bert-base-uncased": 0.4,
-        "bert-large-uncased": 1.3
-    }
+    if not os.path.exists(directory):
+        os.makedirs(directory)
+
+def create_directory_structure():
+    """
+    Create directory structure for the project.
+    """
+    directories = [
+        "data/prospect_theory",
+        "data/anes",
+        "models",
+        "results"
+    ]
     
-    # Default estimate if model not in list
-    return memory_estimates.get(model_name, 1.0)
+    for directory in directories:
+        ensure_dir(directory)
+    
+    print("Directory structure created.")
 
-
-def check_model_compatibility(model_name: str) -> bool:
+def plot_confusion_matrix(
+    y_true: np.ndarray,
+    y_pred: np.ndarray,
+    class_names: List[str] = ["Donald Trump", "Kamala Harris"],
+    save_path: Optional[str] = None,
+    title: str = "Confusion Matrix"
+):
     """
-    Check if a model is compatible with the current environment.
+    Plot confusion matrix.
     
     Args:
-        model_name: Name of the model
-        
-    Returns:
-        True if compatible, False otherwise
+        y_true: True labels
+        y_pred: Predicted labels
+        class_names: Class names
+        save_path: Path to save the plot
+        title: Plot title
     """
-    try:
-        from transformers import AutoModel, AutoTokenizer
-        
-        # Try to load tokenizer
-        tokenizer = AutoTokenizer.from_pretrained(model_name)
-        
-        # Try to load model config (without downloading full model)
-        from transformers import AutoConfig
-        config = AutoConfig.from_pretrained(model_name)
-        
-        return True
-    except Exception as e:
-        print(f"Error checking model compatibility: {e}")
-        return False
-
-
-def get_recommended_batch_size(model_name: str) -> int:
-    """
-    Get recommended batch size for a model.
+    # Calculate confusion matrix
+    cm = np.zeros((len(class_names), len(class_names)))
+    for i in range(len(y_true)):
+        cm[y_true[i], y_pred[i]] += 1
     
-    Args:
-        model_name: Name of the model
-        
-    Returns:
-        Recommended batch size
-    """
-    # Base recommendations on model size and available memory
-    if not torch.cuda.is_available():
-        # CPU mode - use smaller batches
-        if "large" in model_name:
-            return 4
-        else:
-            return 8
+    # Plot
+    plt.figure(figsize=(8, 6))
+    sns.heatmap(cm, annot=True, fmt=".0f", cmap="Blues", xticklabels=class_names, yticklabels=class_names)
+    plt.xlabel("Predicted")
+    plt.ylabel("True")
+    plt.title(title)
     
-    # GPU mode - check memory
-    gpu_memory = torch.cuda.get_device_properties(0).total_memory / (1024 ** 3)  # GB
-    
-    if "large" in model_name:
-        if gpu_memory > 16:
-            return 16
-        elif gpu_memory > 8:
-            return 8
-        else:
-            return 4
+    if save_path:
+        plt.savefig(save_path, dpi=300, bbox_inches="tight")
+        print(f"Saved confusion matrix to {save_path}")
     else:
-        if gpu_memory > 16:
-            return 32
-        elif gpu_memory > 8:
-            return 16
-        else:
-            return 8
+        plt.show()
 
+def plot_bias_scores_by_class(
+    bias_scores: np.ndarray,
+    targets: np.ndarray,
+    bias_names: List[str],
+    save_path: Optional[str] = None,
+    title: str = "Cognitive Bias Scores by Voting Preference"
+):
+    """
+    Plot bias scores by class.
+    
+    Args:
+        bias_scores: Bias scores
+        targets: Target labels
+        bias_names: Bias names
+        save_path: Path to save the plot
+        title: Plot title
+    """
+    # Calculate mean bias scores for each class
+    class_0_indices = targets == 0  # Trump
+    class_1_indices = targets == 1  # Harris
+    
+    class_0_scores = bias_scores[class_0_indices].mean(axis=0)
+    class_1_scores = bias_scores[class_1_indices].mean(axis=0)
+    
+    # Plot
+    x = np.arange(len(bias_names))
+    width = 0.35
+    
+    fig, ax = plt.subplots(figsize=(12, 8))
+    rects1 = ax.bar(x - width/2, class_0_scores, width, label='Donald Trump Voters')
+    rects2 = ax.bar(x + width/2, class_1_scores, width, label='Kamala Harris Voters')
+    
+    ax.set_title(title, fontsize=16)
+    ax.set_xlabel('Cognitive Bias Type', fontsize=14)
+    ax.set_ylabel('Average Bias Score', fontsize=14)
+    ax.set_xticks(x)
+    ax.set_xticklabels(bias_names, rotation=45, ha='right')
+    ax.legend()
+    
+    # Add value labels
+    def autolabel(rects):
+        for rect in rects:
+            height = rect.get_height()
+            ax.annotate(f'{height:.2f}',
+                        xy=(rect.get_x() + rect.get_width() / 2, height),
+                        xytext=(0, 3),
+                        textcoords="offset points",
+                        ha='center', va='bottom')
+    
+    autolabel(rects1)
+    autolabel(rects2)
+    
+    plt.tight_layout()
+    
+    if save_path:
+        plt.savefig(save_path, dpi=300, bbox_inches="tight")
+        print(f"Saved bias scores plot to {save_path}")
+    else:
+        plt.show()
 
-if __name__ == "__main__":
-    # Example usage
-    create_directory_structure()
-    set_seed(42)
+def plot_system_weights_by_class(
+    system_weights: np.ndarray,
+    targets: np.ndarray,
+    save_path: Optional[str] = None,
+    title: str = "System 1 vs System 2 Thinking by Voting Preference"
+):
+    """
+    Plot system weights by class.
     
-    # Print compatibility information
-    compatibility = check_compatibility()
-    print("\nCompatibility Information:")
-    for key, value in compatibility.items():
-        print(f"  {key}: {value}")
+    Args:
+        system_weights: System weights
+        targets: Target labels
+        save_path: Path to save the plot
+        title: Plot title
+    """
+    # Calculate mean system weights for each class
+    class_0_indices = targets == 0  # Trump
+    class_1_indices = targets == 1  # Harris
     
-    # Print available models
-    models = get_available_models()
-    print("\nRecommended Models:")
-    for model, description in models.items():
-        print(f"  {model}: {description}")
-        print(f"    - Estimated memory: {estimate_model_memory(model):.1f} GB")
-        print(f"    - Recommended batch size: {get_recommended_batch_size(model)}")
-        print(f"    - Compatible: {check_model_compatibility(model)}")
+    class_0_system = system_weights[class_0_indices].mean(axis=0)
+    class_1_system = system_weights[class_1_indices].mean(axis=0)
+    
+    # Plot
+    system_names = ['System 1 (Fast)', 'System 2 (Slow)']
+    x = np.arange(len(system_names))
+    width = 0.35
+    
+    fig, ax = plt.subplots(figsize=(10, 6))
+    rects1 = ax.bar(x - width/2, class_0_system, width, label='Donald Trump Voters')
+    rects2 = ax.bar(x + width/2, class_1_system, width, label='Kamala Harris Voters')
+    
+    ax.set_title(title, fontsize=16)
+    ax.set_xlabel('Thinking System', fontsize=14)
+    ax.set_ylabel('Average Weight', fontsize=14)
+    ax.set_xticks(x)
+    ax.set_xticklabels(system_names)
+    ax.legend()
+    
+    # Add value labels
+    def autolabel(rects):
+        for rect in rects:
+            height = rect.get_height()
+            ax.annotate(f'{height:.2f}',
+                        xy=(rect.get_x() + rect.get_width() / 2, height),
+                        xytext=(0, 3),
+                        textcoords="offset points",
+                        ha='center', va='bottom')
+    
+    autolabel(rects1)
+    autolabel(rects2)
+    
+    plt.tight_layout()
+    
+    if save_path:
+        plt.savefig(save_path, dpi=300, bbox_inches="tight")
+        print(f"Saved system weights plot to {save_path}")
+    else:
+        plt.show()
+
+def plot_bias_correlation_matrix(
+    bias_scores: np.ndarray,
+    bias_names: List[str],
+    save_path: Optional[str] = None,
+    title: str = "Correlation Between Cognitive Biases"
+):
+    """
+    Plot bias correlation matrix.
+    
+    Args:
+        bias_scores: Bias scores
+        bias_names: Bias names
+        save_path: Path to save the plot
+        title: Plot title
+    """
+    # Calculate correlation matrix
+    corr_matrix = np.corrcoef(bias_scores.T)
+    
+    # Plot
+    plt.figure(figsize=(10, 8))
+    sns.heatmap(corr_matrix, annot=True, cmap='coolwarm', vmin=-1, vmax=1, xticklabels=bias_names, yticklabels=bias_names)
+    plt.title(title, fontsize=16)
+    plt.tight_layout()
+    
+    if save_path:
+        plt.savefig(save_path, dpi=300, bbox_inches="tight")
+        print(f"Saved correlation matrix to {save_path}")
+    else:
+        plt.show()
+
+def plot_feature_importance(
+    feature_names: List[str],
+    importance: np.ndarray,
+    save_path: Optional[str] = None,
+    title: str = "Feature Importance"
+):
+    """
+    Plot feature importance.
+    
+    Args:
+        feature_names: Feature names
+        importance: Feature importance values
+        save_path: Path to save the plot
+        title: Plot title
+    """
+    # Sort by importance
+    indices = np.argsort(importance)[::-1]
+    sorted_names = [feature_names[i] for i in indices]
+    sorted_importance = importance[indices]
+    
+    # Plot
+    plt.figure(figsize=(12, 8))
+    plt.bar(range(len(sorted_names)), sorted_importance)
+    plt.xticks(range(len(sorted_names)), sorted_names, rotation=45, ha='right')
+    plt.xlabel('Feature')
+    plt.ylabel('Importance')
+    plt.title(title, fontsize=16)
+    plt.tight_layout()
+    
+    if save_path:
+        plt.savefig(save_path, dpi=300, bbox_inches="tight")
+        print(f"Saved feature importance plot to {save_path}")
+    else:
+        plt.show()
+
+def plot_threshold_performance(
+    thresholds: List[float],
+    metrics: Dict[str, List[float]],
+    save_path: Optional[str] = None,
+    title: str = "Performance Across Thresholds"
+):
+    """
+    Plot performance across thresholds.
+    
+    Args:
+        thresholds: Threshold values
+        metrics: Dictionary of metrics
+        save_path: Path to save the plot
+        title: Plot title
+    """
+    plt.figure(figsize=(10, 6))
+    
+    for metric_name, values in metrics.items():
+        plt.plot(thresholds, values, marker='o', label=metric_name)
+    
+    plt.xlabel('Threshold')
+    plt.ylabel('Score')
+    plt.title(title, fontsize=16)
+    plt.grid(True, linestyle='--', alpha=0.7)
+    plt.legend()
+    
+    if save_path:
+        plt.savefig(save_path, dpi=300, bbox_inches="tight")
+        print(f"Saved threshold performance plot to {save_path}")
+    else:
+        plt.show()
+
+def plot_comprehensive_summary(
+    bias_scores: np.ndarray,
+    system_weights: np.ndarray,
+    targets: np.ndarray,
+    bias_names: List[str],
+    feature_importance: Optional[np.ndarray] = None,
+    feature_names: Optional[List[str]] = None,
+    save_path: Optional[str] = None,
+    title: str = "Prospect Theory Analysis Summary"
+):
+    """
+    Plot comprehensive summary figure.
+    
+    Args:
+        bias_scores: Bias scores
+        system_weights: System weights
+        targets: Target labels
+        bias_names: Bias names
+        feature_importance: Feature importance values
+        feature_names: Feature names
+        save_path: Path to save the plot
+        title: Plot title
+    """
+    # Calculate mean bias scores for each class
+    class_0_indices = targets == 0  # Trump
+    class_1_indices = targets == 1  # Harris
+    
+    class_0_scores = bias_scores[class_0_indices].mean(axis=0)
+    class_1_scores = bias_scores[class_1_indices].mean(axis=0)
+    
+    class_0_system = system_weights[class_0_indices].mean(axis=0)
+    class_1_system = system_weights[class_1_indices].mean(axis=0)
+    
+    # Calculate correlation matrix
+    corr_matrix = np.corrcoef(bias_scores.T)
+    
+    # Create figure
+    fig, axes = plt.subplots(2, 2, figsize=(20, 16))
+    
+    # Bias scores by class
+    x = np.arange(len(bias_names))
+    width = 0.35
+    
+    rects1 = axes[0, 0].bar(x - width/2, class_0_scores, width, label='Donald Trump Voters')
+    rects2 = axes[0, 0].bar(x + width/2, class_1_scores, width, label='Kamala Harris Voters')
+    
+    axes[0, 0].set_title('Cognitive Bias Scores by Voting Preference', fontsize=16)
+    axes[0, 0].set_xlabel('Cognitive Bias Type', fontsize=14)
+    axes[0, 0].set_ylabel('Average Bias Score', fontsize=14)
+    axes[0, 0].set_xticks(x)
+    axes[0, 0].set_xticklabels(bias_names, rotation=45, ha='right')
+    axes[0, 0].legend()
+    
+    # System weights by class
+    system_names = ['System 1 (Fast)', 'System 2 (Slow)']
+    x = np.arange(len(system_names))
+    
+    rects3 = axes[0, 1].bar(x - width/2, class_0_system, width, label='Donald Trump Voters')
+    rects4 = axes[0, 1].bar(x + width/2, class_1_system, width, label='Kamala Harris Voters')
+    
+    axes[0, 1].set_title('System 1 vs System 2 Thinking by Voting Preference', fontsize=16)
+    axes[0, 1].set_xlabel('Thinking System', fontsize=14)
+    axes[0, 1].set_ylabel('Average Weight', fontsize=14)
+    axes[0, 1].set_xticks(x)
+    axes[0, 1].set_xticklabels(system_names)
+    axes[0, 1].legend()
+    
+    # Bias correlation matrix
+    sns.heatmap(corr_matrix, annot=True, cmap='coolwarm', vmin=-1, vmax=1, 
+                xticklabels=bias_names, yticklabels=bias_names, ax=axes[1, 0])
+    axes[1, 0].set_title('Correlation Between Cognitive Biases', fontsize=16)
+    
+    # Feature importance
+    if feature_importance is not None and feature_names is not None:
+        # Sort by importance
+        indices = np.argsort(feature_importance)[::-1]
+        sorted_names = [feature_names[i] for i in indices]
+        sorted_importance = feature_importance[indices]
+        
+        # Plot top 10 features
+        top_n = min(10, len(sorted_names))
+        axes[1, 1].bar(range(top_n), sorted_importance[:top_n])
+        axes[1, 1].set_xticks(range(top_n))
+        axes[1, 1].set_xticklabels(sorted_names[:top_n], rotation=45, ha='right')
+        axes[1, 1].set_title('Top Features for Prediction', fontsize=16)
+        axes[1, 1].set_xlabel('Feature', fontsize=14)
+        axes[1, 1].set_ylabel('Importance', fontsize=14)
+    else:
+        # Plot system weight distribution
+        axes[1, 1].hist(system_weights[:, 0], bins=20, alpha=0.7, label="System 1")
+        axes[1, 1].hist(system_weights[:, 1], bins=20, alpha=0.7, label="System 2")
+        axes[1, 1].set_title("Distribution of System 1/2 Thinking Weights", fontsize=16)
+        axes[1, 1].set_xlabel("Weight", fontsize=14)
+        axes[1, 1].set_ylabel("Frequency", fontsize=14)
+        axes[1, 1].legend()
+    
+    plt.suptitle(title, fontsize=20)
+    plt.tight_layout(rect=[0, 0, 1, 0.96])
+    
+    if save_path:
+        plt.savefig(save_path, dpi=300, bbox_inches="tight")
+        print(f"Saved comprehensive summary to {save_path}")
+    else:
+        plt.show()
+
+def get_device_info():
+    """
+    Get device information.
+    
+    Returns:
+        Dictionary with device information
+    """
+    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+    
+    info = {
+        "device": str(device),
+        "cuda_available": torch.cuda.is_available()
+    }
+    
+    if torch.cuda.is_available():
+        info["cuda_device_count"] = torch.cuda.device_count()
+        info["cuda_device_name"] = torch.cuda.get_device_name(0)
+        info["cuda_device_capability"] = torch.cuda.get_device_capability(0)
+    
+    return info
+
+def optimize_batch_size(model_name: str, max_batch_size: int = 32):
+    """
+    Optimize batch size based on available memory.
+    
+    Args:
+        model_name: Name of the model
+        max_batch_size: Maximum batch size to try
+        
+    Returns:
+        Optimal batch size
+    """
+    if not torch.cuda.is_available():
+        return 8  # Default for CPU
+    
+    # Try different batch sizes
+    for batch_size in [max_batch_size, 16, 8, 4, 2, 1]:
+        try:
+            # Try to load model and create a dummy batch
+            model = torch.hub.load('huggingface/pytorch-transformers', 'model', model_name)
+            model.to("cuda")
+            
+            # Create dummy input
+            dummy_input = torch.ones((batch_size, 128), dtype=torch.long).to("cuda")
+            
+            # Try forward pass
+            with torch.no_grad():
+                model(dummy_input)
+            
+            # If we get here, the batch size works
+            del model
+            torch.cuda.empty_cache()
+            return batch_size
+        
+        except RuntimeError as e:
+            if "out of memory" in str(e).lower():
+                print(f"Batch size {batch_size} too large, trying smaller...")
+                torch.cuda.empty_cache()
+            else:
+                raise e
+    
+    return 1  # Fallback to minimum batch size

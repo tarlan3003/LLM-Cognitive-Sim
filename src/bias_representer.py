@@ -1,357 +1,335 @@
 """
-Cognitive Bias Representation Module for Prospect Theory Pipeline
+Cognitive Bias Representation Module - Best Performing Version
 
-This module provides functionality to represent cognitive biases and System 1/2 thinking
-patterns based on LLM hidden layer representations.
+This module implements the cognitive bias representation model that detects
+specific biases from Prospect Theory in text using Concept Activation Vectors
+and System 1/2 thinking classification.
+
+Author: Tarlan Sultanov
 """
 
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
 import numpy as np
-from sklearn.linear_model import LogisticRegression
-from sklearn.model_selection import train_test_split
 from tqdm import tqdm
-from typing import Dict, List, Tuple, Optional, Union
+from typing import List, Dict, Tuple, Optional
 
-
-class CognitiveBiasRepresenter:
+class CognitiveBiasRepresenter(nn.Module):
     """
-    Represent cognitive biases and System 1/2 thinking patterns based on LLM activations.
+    Model for representing cognitive biases from Prospect Theory.
     
-    This class combines Concept Activation Vectors (CAVs) for specific biases with
-    a Mixture of Experts (MoE) approach for System 1/2 thinking.
+    This model has two main components:
+    1. Concept Activation Vectors (CAVs) for specific bias detection
+    2. System 1/2 thinking classification with adapter-based approach
     """
     
     def __init__(
         self, 
-        llm_hidden_size: int, 
-        bias_names: List[str], 
-        system_adapter_bottleneck: int = 128, 
-        device: str = 'cpu'
+        input_dim: int, 
+        hidden_dim: int, 
+        num_biases: int, 
+        system_adapter_dim: int = 128,
+        dropout: float = 0.3
     ):
         """
         Initialize the cognitive bias representer.
         
         Args:
-            llm_hidden_size: Hidden size of the LLM
-            bias_names: List of bias names to represent
-            system_adapter_bottleneck: Bottleneck size for System 1/2 adapters
-            device: Device to run the model on
+            input_dim: Dimension of input representations
+            hidden_dim: Dimension of hidden layers
+            num_biases: Number of bias types to detect
+            system_adapter_dim: Dimension of system adapter
+            dropout: Dropout rate
         """
-        self.device = device
-        self.bias_names = bias_names
-        self.cav_classifiers = {}  # To be populated with trained LogisticRegression models for each bias
+        super().__init__()
         
-        # System 1/2 Adapters (MoE-like)
-        self.system1_adapter = nn.Sequential(
-            nn.Linear(llm_hidden_size, system_adapter_bottleneck),
+        self.input_dim = input_dim
+        self.hidden_dim = hidden_dim
+        self.num_biases = num_biases
+        self.system_adapter_dim = system_adapter_dim
+        
+        # Bias detection components
+        self.bias_encoder = nn.Sequential(
+            nn.Linear(input_dim, hidden_dim),
+            nn.LayerNorm(hidden_dim),
             nn.ReLU(),
-            nn.Linear(system_adapter_bottleneck, llm_hidden_size)
-        ).to(device)
-        
-        self.system2_adapter = nn.Sequential(
-            nn.Linear(llm_hidden_size, system_adapter_bottleneck),
+            nn.Dropout(dropout),
+            nn.Linear(hidden_dim, hidden_dim // 2),
+            nn.LayerNorm(hidden_dim // 2),
             nn.ReLU(),
-            nn.Linear(system_adapter_bottleneck, llm_hidden_size)
-        ).to(device)
+            nn.Dropout(dropout)
+        )
         
-        # Router for System 1/2
-        self.system_router = nn.Linear(llm_hidden_size, 2).to(device)
+        self.bias_classifier = nn.Linear(hidden_dim // 2, num_biases)
         
-        print(f"Initialized CognitiveBiasRepresenter with {len(bias_names)} biases on {device}")
-
-    def train_cav(
-        self, 
-        bias_name: str, 
-        positive_activations: np.ndarray, 
-        negative_activations: np.ndarray
-    ) -> LogisticRegression:
+        # System 1/2 thinking components
+        self.system_adapter_1 = nn.Sequential(
+            nn.Linear(input_dim, system_adapter_dim),
+            nn.LayerNorm(system_adapter_dim),
+            nn.ReLU(),
+            nn.Dropout(dropout)
+        )
+        
+        self.system_adapter_2 = nn.Sequential(
+            nn.Linear(input_dim, system_adapter_dim),
+            nn.LayerNorm(system_adapter_dim),
+            nn.ReLU(),
+            nn.Dropout(dropout)
+        )
+        
+        self.system_classifier = nn.Linear(system_adapter_dim * 2, 2)
+        
+        # Initialize weights
+        self._init_weights()
+    
+    def _init_weights(self):
         """
-        Train a CAV for a specific bias.
+        Initialize model weights.
+        """
+        for module in self.modules():
+            if isinstance(module, nn.Linear):
+                nn.init.xavier_normal_(module.weight)
+                if module.bias is not None:
+                    nn.init.zeros_(module.bias)
+    
+    def forward(self, hidden_reps: torch.Tensor) -> Tuple[torch.Tensor, torch.Tensor]:
+        """
+        Forward pass.
         
         Args:
-            bias_name: Name of the bias to train for
-            positive_activations: Activations for positive examples
-            negative_activations: Activations for negative examples
+            hidden_reps: Hidden representations from LLM
             
         Returns:
-            Trained classifier
+            Tuple of (bias_scores, system_weights)
         """
-        X = np.concatenate([positive_activations, negative_activations])
-        y = np.concatenate([np.ones(len(positive_activations)), np.zeros(len(negative_activations))])
+        # Bias detection
+        bias_features = self.bias_encoder(hidden_reps)
+        bias_scores = torch.sigmoid(self.bias_classifier(bias_features))
         
-        # Split into train/test
-        X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=42)
+        # System 1/2 thinking
+        system_1_features = self.system_adapter_1(hidden_reps)
+        system_2_features = self.system_adapter_2(hidden_reps)
         
-        classifier = LogisticRegression(solver='liblinear', class_weight='balanced')
-        classifier.fit(X_train, y_train)
+        # Concatenate system features
+        system_features = torch.cat([system_1_features, system_2_features], dim=1)
+        system_logits = self.system_classifier(system_features)
+        system_weights = torch.softmax(system_logits, dim=1)
         
-        # Evaluate
-        train_acc = classifier.score(X_train, y_train)
-        test_acc = classifier.score(X_test, y_test)
-        
-        print(f"Trained CAV for {bias_name}: Train acc={train_acc:.4f}, Test acc={test_acc:.4f}")
-        
-        self.cav_classifiers[bias_name] = classifier
-        return classifier
-
-    def get_bias_scores(
-        self, 
-        activations: Union[Dict[str, torch.Tensor], torch.Tensor]
-    ) -> torch.Tensor:
+        return bias_scores, system_weights
+    
+    def train(
+        self,
+        train_dataloader: torch.utils.data.DataLoader,
+        val_dataloader: torch.utils.data.DataLoader,
+        extractor: 'HiddenLayerExtractor',
+        num_epochs: int = 5,
+        learning_rate: float = 3e-4,
+        device: torch.device = None
+    ) -> Dict[str, float]:
         """
-        Get scores for each bias using trained CAVs.
+        Train the cognitive bias representer.
         
         Args:
-            activations: Activations to get scores for (dict of layer activations or tensor)
+            train_dataloader: DataLoader for training data
+            val_dataloader: DataLoader for validation data
+            extractor: Hidden layer extractor
+            num_epochs: Number of training epochs
+            learning_rate: Learning rate
+            device: Device to train on
             
         Returns:
-            Tensor of bias scores [batch_size, num_biases]
+            Dictionary of evaluation metrics
         """
-        bias_scores = []
+        if device is None:
+            device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
         
-        # Convert to numpy for scikit-learn
-        if isinstance(activations, dict):
-            # If activations is a dict of layer activations, use the last layer
-            layer_name = list(activations.keys())[-1]
-            activations_np = activations[layer_name].cpu().numpy()
-        else:
-            # If activations is already a tensor
-            activations_np = activations.cpu().numpy()
-            
-        for bias_name in self.bias_names:
-            if bias_name in self.cav_classifiers:
-                # Predict probability of positive class (bias present)
-                score = self.cav_classifiers[bias_name].predict_proba(activations_np)[:, 1]
-                bias_scores.append(torch.tensor(score, dtype=torch.float).unsqueeze(1))
-            else:
-                # Return zeros if CAV not trained for this bias
-                bias_scores.append(torch.zeros(activations_np.shape[0], 1, dtype=torch.float))
-                
-        return torch.cat(bias_scores, dim=1)
-
-    def get_system_representations(
-        self, 
-        activations: Union[Dict[str, torch.Tensor], torch.Tensor]
-    ) -> Tuple[torch.Tensor, torch.Tensor]:
-        """
-        Get System 1/2 representations and router weights.
+        self.to(device)
         
-        Args:
-            activations: Activations to get representations for (dict of layer activations or tensor)
-            
-        Returns:
-            Tuple of (weighted_system_rep, system_weights)
-        """
-        # Handle dict of layer activations
-        if isinstance(activations, dict):
-            layer_name = list(activations.keys())[-1]
-            activations_tensor = activations[layer_name].to(self.device)
-        else:
-            activations_tensor = activations.to(self.device)
-            
-        system_logits = self.system_router(activations_tensor)
-        system_weights = F.softmax(system_logits, dim=-1)
+        # Define loss functions
+        bias_criterion = nn.BCELoss()
+        system_criterion = nn.CrossEntropyLoss()
         
-        rep1 = self.system1_adapter(activations_tensor)
-        rep2 = self.system2_adapter(activations_tensor)
-        
-        # Weighted average of system representations based on router
-        # Shape: [batch_size, llm_hidden_size]
-        weighted_system_rep = system_weights[:, 0].unsqueeze(1) * rep1 + system_weights[:, 1].unsqueeze(1) * rep2
-        
-        return weighted_system_rep, system_weights
-
-    def train_system_components(
-        self, 
-        dataloader, 
-        llm_extractor, 
-        num_epochs: int = 5, 
-        lr: float = 1e-4
-    ) -> Dict:
-        """
-        Train System 1/2 adapters and router.
-        
-        Args:
-            dataloader: DataLoader for training data
-            llm_extractor: HiddenLayerExtractor instance
-            num_epochs: Number of epochs to train for
-            lr: Learning rate
-            
-        Returns:
-            Dictionary of training metrics
-        """
-        # Optimizer for System 1/2 adapters and router
-        system_params = list(self.system1_adapter.parameters()) + \
-                        list(self.system2_adapter.parameters()) + \
-                        list(self.system_router.parameters())
-        optimizer = torch.optim.Adam(system_params, lr=lr)
-        loss_fn = nn.CrossEntropyLoss()
+        # Define optimizer
+        optimizer = torch.optim.AdamW(self.parameters(), lr=learning_rate)
         
         # Training loop
-        metrics = {'epoch_losses': [], 'epoch_accuracies': []}
+        best_val_loss = float('inf')
+        best_metrics = {}
         
         for epoch in range(num_epochs):
-            total_loss = 0
-            correct = 0
-            total = 0
+            # Training
+            self.train()
+            train_bias_loss = 0.0
+            train_system_loss = 0.0
+            train_total_loss = 0.0
             
-            for batch in tqdm(dataloader, desc=f"Epoch {epoch+1}/{num_epochs}"):
-                texts = batch['text']
-                true_system_labels = batch['system_label'].to(self.device)
+            for batch in tqdm(train_dataloader, desc=f"Epoch {epoch+1}/{num_epochs} (Training)"):
+                # Extract hidden representations
+                input_ids = batch['input_ids'].to(device)
+                attention_mask = batch['attention_mask'].to(device)
+                bias_labels = batch['bias_labels'].to(device)
+                system_label = batch['system_label'].to(device)
                 
-                # Extract activations
-                activations = llm_extractor.extract_activations(texts)
-                layer_name = list(activations.keys())[-1]
-                activations_tensor = activations[layer_name].to(self.device)
+                hidden_reps = extractor(input_ids, attention_mask)
                 
                 # Forward pass
-                optimizer.zero_grad()
-                system_logits = self.system_router(activations_tensor)
-                loss = loss_fn(system_logits, true_system_labels)
+                bias_scores, system_weights = self(hidden_reps)
+                
+                # Calculate losses
+                bias_loss = bias_criterion(bias_scores, bias_labels)
+                system_loss = system_criterion(system_weights, system_label)
+                
+                # Combined loss
+                total_loss = bias_loss + system_loss
                 
                 # Backward pass
-                loss.backward()
+                optimizer.zero_grad()
+                total_loss.backward()
                 optimizer.step()
                 
-                # Track metrics
-                total_loss += loss.item() * len(true_system_labels)
-                preds = torch.argmax(system_logits, dim=1)
-                correct += (preds == true_system_labels).sum().item()
-                total += len(true_system_labels)
+                # Update metrics
+                train_bias_loss += bias_loss.item()
+                train_system_loss += system_loss.item()
+                train_total_loss += total_loss.item()
             
-            # Epoch metrics
-            epoch_loss = total_loss / total
-            epoch_acc = correct / total
-            metrics['epoch_losses'].append(epoch_loss)
-            metrics['epoch_accuracies'].append(epoch_acc)
+            # Calculate average losses
+            train_bias_loss /= len(train_dataloader)
+            train_system_loss /= len(train_dataloader)
+            train_total_loss /= len(train_dataloader)
             
-            print(f"Epoch {epoch+1}/{num_epochs}: Loss={epoch_loss:.4f}, Acc={epoch_acc:.4f}")
+            # Validation
+            val_metrics = self.evaluate(val_dataloader, extractor, device)
+            
+            # Print metrics
+            print(f"Epoch {epoch+1}/{num_epochs}:")
+            print(f"  Train - Bias Loss: {train_bias_loss:.4f}, System Loss: {train_system_loss:.4f}, Total Loss: {train_total_loss:.4f}")
+            print(f"  Val - Bias Loss: {val_metrics['bias_loss']:.4f}, System Loss: {val_metrics['system_loss']:.4f}, Total Loss: {val_metrics['total_loss']:.4f}")
+            print(f"  Val - System Accuracy: {val_metrics['system_accuracy']:.4f}")
+            
+            # Save best model
+            if val_metrics['total_loss'] < best_val_loss:
+                best_val_loss = val_metrics['total_loss']
+                best_metrics = val_metrics
         
-        return metrics
-
-    def train_cavs(self, dataloader, llm_extractor) -> Dict[str, LogisticRegression]:
+        return best_metrics
+    
+    def evaluate(
+        self,
+        dataloader: torch.utils.data.DataLoader,
+        extractor: 'HiddenLayerExtractor',
+        device: torch.device = None
+    ) -> Dict[str, float]:
         """
-        Train CAVs for each bias type.
+        Evaluate the cognitive bias representer.
         
         Args:
-            dataloader: DataLoader for training data
-            llm_extractor: HiddenLayerExtractor instance
+            dataloader: DataLoader for evaluation data
+            extractor: Hidden layer extractor
+            device: Device to evaluate on
             
         Returns:
-            Dictionary mapping bias names to CAV classifiers
+            Dictionary of evaluation metrics
         """
-        # Collect activations and labels for each bias
-        bias_activations = {bias: {'positive': [], 'negative': []} for bias in self.bias_names}
+        if device is None:
+            device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
         
-        for batch in tqdm(dataloader, desc="Collecting activations for CAVs"):
-            texts = batch['text']
-            bias_labels = batch['bias_labels'].cpu().numpy()
-            
-            # Extract activations
-            activations = llm_extractor.extract_activations(texts)
-            layer_name = list(activations.keys())[-1]
-            activations_np = activations[layer_name].cpu().numpy()
-            
-            # Collect activations for each bias
-            for i, bias_name in enumerate(self.bias_names):
-                for j in range(len(texts)):
-                    if bias_labels[j, i] == 1:
-                        bias_activations[bias_name]['positive'].append(activations_np[j])
-                    else:
-                        bias_activations[bias_name]['negative'].append(activations_np[j])
+        self.to(device)
+        self.eval()
         
-        # Train CAVs for each bias
-        for bias_name in self.bias_names:
-            positive = np.array(bias_activations[bias_name]['positive'])
-            negative = np.array(bias_activations[bias_name]['negative'])
-            
-            if len(positive) == 0 or len(negative) == 0:
-                print(f"Skipping CAV for {bias_name}: Not enough examples")
-                continue
+        # Define loss functions
+        bias_criterion = nn.BCELoss()
+        system_criterion = nn.CrossEntropyLoss()
+        
+        # Evaluation metrics
+        bias_loss = 0.0
+        system_loss = 0.0
+        total_loss = 0.0
+        system_correct = 0
+        total_samples = 0
+        
+        with torch.no_grad():
+            for batch in dataloader:
+                # Extract hidden representations
+                input_ids = batch['input_ids'].to(device)
+                attention_mask = batch['attention_mask'].to(device)
+                bias_labels = batch['bias_labels'].to(device)
+                system_label = batch['system_label'].to(device)
                 
-            print(f"Training CAV for {bias_name}: {len(positive)} positive, {len(negative)} negative examples")
-            self.train_cav(bias_name, positive, negative)
-            
-        return self.cav_classifiers
+                hidden_reps = extractor(input_ids, attention_mask)
+                
+                # Forward pass
+                bias_scores, system_weights = self(hidden_reps)
+                
+                # Calculate losses
+                batch_bias_loss = bias_criterion(bias_scores, bias_labels)
+                batch_system_loss = system_criterion(system_weights, system_label)
+                
+                # Combined loss
+                batch_total_loss = batch_bias_loss + batch_system_loss
+                
+                # Update metrics
+                bias_loss += batch_bias_loss.item() * input_ids.size(0)
+                system_loss += batch_system_loss.item() * input_ids.size(0)
+                total_loss += batch_total_loss.item() * input_ids.size(0)
+                
+                # Calculate system accuracy
+                system_preds = torch.argmax(system_weights, dim=1)
+                system_correct += (system_preds == system_label).sum().item()
+                total_samples += input_ids.size(0)
+        
+        # Calculate average metrics
+        bias_loss /= total_samples
+        system_loss /= total_samples
+        total_loss /= total_samples
+        system_accuracy = system_correct / total_samples
+        
+        return {
+            'bias_loss': bias_loss,
+            'system_loss': system_loss,
+            'total_loss': total_loss,
+            'system_accuracy': system_accuracy
+        }
     
-    def save(self, path: str) -> None:
+    def get_bias_scores(
+        self,
+        hidden_reps: torch.Tensor
+    ) -> torch.Tensor:
         """
-        Save the model to a file.
+        Get bias scores for input representations.
         
         Args:
-            path: Path to save the model to
-        """
-        torch.save({
-            'system1_adapter': self.system1_adapter.state_dict(),
-            'system2_adapter': self.system2_adapter.state_dict(),
-            'system_router': self.system_router.state_dict(),
-            'bias_names': self.bias_names,
-            'cav_classifiers': self.cav_classifiers
-        }, path)
-        print(f"Saved CognitiveBiasRepresenter to {path}")
-    
-    @classmethod
-    def load(cls, path: str, llm_hidden_size: int, device: str = 'cpu') -> 'CognitiveBiasRepresenter':
-        """
-        Load the model from a file.
-        
-        Args:
-            path: Path to load the model from
-            llm_hidden_size: Hidden size of the LLM
-            device: Device to load the model on
+            hidden_reps: Hidden representations from LLM
             
         Returns:
-            Loaded CognitiveBiasRepresenter
+            Bias scores
         """
-        checkpoint = torch.load(path, map_location=device)
-        bias_names = checkpoint['bias_names']
+        self.eval()
+        with torch.no_grad():
+            bias_features = self.bias_encoder(hidden_reps)
+            bias_scores = torch.sigmoid(self.bias_classifier(bias_features))
         
-        model = cls(llm_hidden_size, bias_names, device=device)
-        model.system1_adapter.load_state_dict(checkpoint['system1_adapter'])
-        model.system2_adapter.load_state_dict(checkpoint['system2_adapter'])
-        model.system_router.load_state_dict(checkpoint['system_router'])
-        model.cav_classifiers = checkpoint['cav_classifiers']
+        return bias_scores
+    
+    def get_system_weights(
+        self,
+        hidden_reps: torch.Tensor
+    ) -> torch.Tensor:
+        """
+        Get system weights for input representations.
         
-        print(f"Loaded CognitiveBiasRepresenter from {path}")
-        return model
-
-
-if __name__ == "__main__":
-    # Example usage with RoBERTa model from original notebook
-    import torch.utils.data
-    from dataset import ProspectTheoryDataset
-    from llm_extractor import HiddenLayerExtractor
-    from transformers import RobertaTokenizer
-    
-    # Create dummy dataset
-    os.makedirs("data/prospect_theory", exist_ok=True)
-    ProspectTheoryDataset.create_prospect_theory_dataset(
-        "data/prospect_theory/dummy.json", num_examples=100
-    )
-    
-    # Load tokenizer and dataset
-    tokenizer = RobertaTokenizer.from_pretrained("roberta-base")
-    dataset = ProspectTheoryDataset("data/prospect_theory/dummy.json", tokenizer)
-    dataloader = torch.utils.data.DataLoader(dataset, batch_size=16, shuffle=True)
-    
-    # Initialize extractor and representer
-    extractor = HiddenLayerExtractor("roberta-base", [-1])
-    representer = CognitiveBiasRepresenter(extractor.get_hidden_size(), dataset.bias_names)
-    
-    # Train CAVs
-    representer.train_cavs(dataloader, extractor)
-    
-    # Train system components
-    representer.train_system_components(dataloader, extractor, num_epochs=2)
-    
-    # Test on a single example
-    text = "Political interest: Very much interested\nCampaign interest: Somewhat interested\nEconomic views: Liberal\nState: California\nMedia consumption: Daily\nQ: Who would this respondent vote for in a Harris vs Trump election?"
-    activations = extractor.extract_activations(text)
-    
-    bias_scores = representer.get_bias_scores(activations)
-    weighted_rep, system_weights = representer.get_system_representations(activations)
-    
-    print(f"Bias scores: {bias_scores}")
-    print(f"System weights: {system_weights}")
+        Args:
+            hidden_reps: Hidden representations from LLM
+            
+        Returns:
+            System weights
+        """
+        self.eval()
+        with torch.no_grad():
+            system_1_features = self.system_adapter_1(hidden_reps)
+            system_2_features = self.system_adapter_2(hidden_reps)
+            system_features = torch.cat([system_1_features, system_2_features], dim=1)
+            system_logits = self.system_classifier(system_features)
+            system_weights = torch.softmax(system_logits, dim=1)
+        
+        return system_weights
