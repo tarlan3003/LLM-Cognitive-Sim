@@ -27,14 +27,17 @@ from src.llm_extractor import HiddenLayerExtractor
 from src.bias_representer import CognitiveBiasRepresenter
 from src.anes_classifier import ProspectTheoryANESClassifier, FocalLoss, train_anes_classifier
 from src.utils import set_seed, create_directory_structure, ensure_dir
+from src.visualize import generate_visualizations # Import the visualization function
 
 # Set constants for best performance
-BEST_LLM_MODEL = "roberta-large"
+# Recommended LLM: DeBERTa-v3-large for best performance/resource trade-off
+# If DeBERTa-v3-large causes memory issues, try roberta-large or bert-large-uncased
+BEST_LLM_MODEL = "microsoft/deberta-v3-large"
 BEST_HIDDEN_LAYERS = [-1, -2, -4, -8]  # Multiple layers for richer representation
-BEST_BATCH_SIZE = 16
-BEST_LEARNING_RATE = 2e-4
-BEST_NUM_EPOCHS_PROSPECT = 5
-BEST_NUM_EPOCHS_ANES = 25  # Increased for better convergence
+BEST_BATCH_SIZE = 8 # Reduced batch size for larger models like DeBERTa-v3-large
+BEST_LEARNING_RATE = 2e-5 # Reduced learning rate for fine-tuning large models
+BEST_NUM_EPOCHS_PROSPECT = 10 # Increased for better convergence of bias representer
+BEST_NUM_EPOCHS_ANES = 30  # Increased for better convergence of ANES classifier
 BEST_DROPOUT = 0.3
 BEST_SEED = 42
 BEST_FOCAL_LOSS_GAMMA = 2.0
@@ -109,27 +112,20 @@ def run_full_pipeline(
     # Initialize cognitive bias representer
     print("Initializing cognitive bias representer...")
     bias_representer = CognitiveBiasRepresenter(
-        input_dim=extractor.get_output_dim(),
-        hidden_dim=BEST_BIAS_HIDDEN_DIM,
-        num_biases=len(prospect_dataset.bias_types),
-        system_adapter_dim=BEST_SYSTEM_ADAPTER_DIM,
-        dropout=BEST_DROPOUT
+        llm_hidden_size=extractor.get_hidden_size(),
+        bias_names=prospect_dataset.bias_names,
+        system_adapter_bottleneck=BEST_SYSTEM_ADAPTER_DIM,
+        device=torch.device("cuda" if torch.cuda.is_available() else "cpu")
     )
     
     # Train cognitive bias representer
     print("Training cognitive bias representer...")
-    bias_metrics = bias_representer.train(
-        train_dataloader=train_dataloader,
-        val_dataloader=val_dataloader,
-        extractor=extractor,
-        num_epochs=num_epochs_prospect,
-        learning_rate=learning_rate,
-        device=torch.device("cuda" if torch.cuda.is_available() else "cpu")
-    )
+    bias_metrics = bias_representer.train_cavs(train_dataloader, extractor) # Train CAVs first
+    bias_metrics.update(bias_representer.train_system_components(train_dataloader, extractor, num_epochs=num_epochs_prospect, lr=learning_rate)) # Then train system components
     
     # Save bias representer
     bias_representer_path = os.path.join(save_dir, "bias_representer.pt")
-    torch.save(bias_representer.state_dict(), bias_representer_path)
+    bias_representer.save(bias_representer_path)
     print(f"Bias representer saved to {bias_representer_path}")
     
     # Process ANES dataset
@@ -145,7 +141,7 @@ def run_full_pipeline(
     
     # Load ANES dataset
     print("Loading ANES dataset...")
-    anes_dataset = ProspectTheoryDataset(anes_dataset_path, tokenizer, is_anes=True)
+    anes_dataset = ProspectTheoryDataset(anes_dataset_path, tokenizer, is_anes=True, generate_text_from_anes=True)
     
     # Split ANES dataset
     anes_train_dataset, anes_val_dataset = train_test_split(anes_dataset, test_size=0.2, random_state=seed)
@@ -170,190 +166,28 @@ def run_full_pipeline(
     
     # Generate visualizations
     print("Generating visualizations...")
-    generate_visualizations(anes_val_dataloader, extractor, bias_representer, results_dir)
-    
+    generate_all_visualizations_with_eval_results(anes_val_dataloader, extractor, bias_representer, anes_metrics["anes_classifier"], anes_metrics, results_dir, prospect_dataset.bias_names)    
     # Print final results
     print("\nFinal Evaluation Results:")
     for threshold_key, metrics in anes_metrics.items():
         if threshold_key.startswith("threshold_"):
             print(f"\nResults for {threshold_key}:")
             print(f"Accuracy: {metrics['accuracy']:.4f}")
-            for class_name, class_metrics in metrics['class_metrics'].items():
+            for class_name, class_metrics in metrics["class_metrics"].items():
                 print(f"  {class_name}: Precision={class_metrics['precision']:.4f}, Recall={class_metrics['recall']:.4f}, F1={class_metrics['f1']:.4f}")
             print(f"  macro avg: Precision={metrics['macro_precision']:.4f}, Recall={metrics['macro_recall']:.4f}, F1={metrics['macro_f1']:.4f}")
             print(f"  weighted avg: Precision={metrics['weighted_precision']:.4f}, Recall={metrics['weighted_recall']:.4f}, F1={metrics['weighted_f1']:.4f}")
     
     # Print system weights
     print("\nAverage System Weights:")
-    print(f"  System 1: {anes_metrics['system_weights'][0]:.4f}")
-    print(f"  System 2: {anes_metrics['system_weights'][1]:.4f}")
+    system1_weight = anes_metrics["system_weights"][0]
+    system2_weight = anes_metrics["system_weights"][1]
+    print(f"  System 1: {system1_weight:.4f}")
+    print(f"  System 2: {system2_weight:.4f}")
     
     print("\nPipeline complete! Results saved to", save_dir)
     
     return anes_metrics
-
-def generate_visualizations(dataloader, extractor, bias_representer, results_dir):
-    """
-    Generate visualizations for the thesis.
-    
-    Args:
-        dataloader: DataLoader for ANES dataset
-        extractor: Hidden layer extractor
-        bias_representer: Trained cognitive bias representer
-        results_dir: Directory to save visualizations
-    """
-    ensure_dir(results_dir)
-    
-    # Extract bias scores and targets
-    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-    all_bias_scores = []
-    all_system_weights = []
-    all_targets = []
-    
-    with torch.no_grad():
-        for batch in tqdm(dataloader, desc="Generating visualizations"):
-            # Extract hidden representations
-            hidden_reps = extractor(batch['input_ids'].to(device), batch['attention_mask'].to(device))
-            
-            # Get bias scores and system weights
-            bias_scores, system_weights = bias_representer(hidden_reps)
-            
-            all_bias_scores.append(bias_scores.cpu().numpy())
-            all_system_weights.append(system_weights.cpu().numpy())
-            all_targets.append(batch['target'].numpy())
-    
-    all_bias_scores = np.vstack(all_bias_scores)
-    all_system_weights = np.vstack(all_system_weights)
-    all_targets = np.concatenate(all_targets)
-    
-    # Get bias names
-    bias_names = [
-        "Loss Aversion", "Framing Effect", "Anchoring", 
-        "Availability", "Representativeness", "Status Quo Bias"
-    ]
-    
-    # 1. Bias scores by class
-    plt.figure(figsize=(12, 8))
-    
-    # Calculate mean bias scores for each class
-    class_0_indices = all_targets == 0  # Trump
-    class_1_indices = all_targets == 1  # Harris
-    
-    class_0_scores = all_bias_scores[class_0_indices].mean(axis=0)
-    class_1_scores = all_bias_scores[class_1_indices].mean(axis=0)
-    
-    x = np.arange(len(bias_names))
-    width = 0.35
-    
-    fig, ax = plt.subplots(figsize=(12, 8))
-    rects1 = ax.bar(x - width/2, class_0_scores, width, label='Donald Trump Voters')
-    rects2 = ax.bar(x + width/2, class_1_scores, width, label='Kamala Harris Voters')
-    
-    ax.set_title('Cognitive Bias Scores by Voting Preference', fontsize=16)
-    ax.set_xlabel('Cognitive Bias Type', fontsize=14)
-    ax.set_ylabel('Average Bias Score', fontsize=14)
-    ax.set_xticks(x)
-    ax.set_xticklabels(bias_names, rotation=45, ha='right')
-    ax.legend()
-    
-    # Add value labels
-    def autolabel(rects):
-        for rect in rects:
-            height = rect.get_height()
-            ax.annotate(f'{height:.2f}',
-                        xy=(rect.get_x() + rect.get_width() / 2, height),
-                        xytext=(0, 3),
-                        textcoords="offset points",
-                        ha='center', va='bottom')
-    
-    autolabel(rects1)
-    autolabel(rects2)
-    
-    plt.tight_layout()
-    plt.savefig(os.path.join(results_dir, 'bias_scores_by_class.png'), dpi=300)
-    
-    # 2. System weights by class
-    plt.figure(figsize=(10, 6))
-    
-    class_0_system = all_system_weights[class_0_indices].mean(axis=0)
-    class_1_system = all_system_weights[class_1_indices].mean(axis=0)
-    
-    system_names = ['System 1 (Fast)', 'System 2 (Slow)']
-    x = np.arange(len(system_names))
-    
-    fig, ax = plt.subplots(figsize=(10, 6))
-    rects1 = ax.bar(x - width/2, class_0_system, width, label='Donald Trump Voters')
-    rects2 = ax.bar(x + width/2, class_1_system, width, label='Kamala Harris Voters')
-    
-    ax.set_title('System 1 vs System 2 Thinking by Voting Preference', fontsize=16)
-    ax.set_xlabel('Thinking System', fontsize=14)
-    ax.set_ylabel('Average Weight', fontsize=14)
-    ax.set_xticks(x)
-    ax.set_xticklabels(system_names)
-    ax.legend()
-    
-    autolabel(rects1)
-    autolabel(rects2)
-    
-    plt.tight_layout()
-    plt.savefig(os.path.join(results_dir, 'system_weights_by_class.png'), dpi=300)
-    
-    # 3. Bias correlation matrix
-    plt.figure(figsize=(10, 8))
-    
-    bias_df = pd.DataFrame(all_bias_scores, columns=bias_names)
-    corr_matrix = bias_df.corr()
-    
-    sns.heatmap(corr_matrix, annot=True, cmap='coolwarm', vmin=-1, vmax=1)
-    plt.title('Correlation Between Cognitive Biases', fontsize=16)
-    plt.tight_layout()
-    plt.savefig(os.path.join(results_dir, 'bias_correlation_matrix.png'), dpi=300)
-    
-    # 4. Comprehensive summary figure
-    fig, axes = plt.subplots(2, 2, figsize=(20, 16))
-    
-    # Bias scores by class
-    x = np.arange(len(bias_names))
-    rects1 = axes[0, 0].bar(x - width/2, class_0_scores, width, label='Donald Trump Voters')
-    rects2 = axes[0, 0].bar(x + width/2, class_1_scores, width, label='Kamala Harris Voters')
-    axes[0, 0].set_title('Cognitive Bias Scores by Voting Preference', fontsize=16)
-    axes[0, 0].set_xlabel('Cognitive Bias Type', fontsize=14)
-    axes[0, 0].set_ylabel('Average Bias Score', fontsize=14)
-    axes[0, 0].set_xticks(x)
-    axes[0, 0].set_xticklabels(bias_names, rotation=45, ha='right')
-    axes[0, 0].legend()
-    
-    # System weights by class
-    x = np.arange(len(system_names))
-    rects3 = axes[0, 1].bar(x - width/2, class_0_system, width, label='Donald Trump Voters')
-    rects4 = axes[0, 1].bar(x + width/2, class_1_system, width, label='Kamala Harris Voters')
-    axes[0, 1].set_title('System 1 vs System 2 Thinking by Voting Preference', fontsize=16)
-    axes[0, 1].set_xlabel('Thinking System', fontsize=14)
-    axes[0, 1].set_ylabel('Average Weight', fontsize=14)
-    axes[0, 1].set_xticks(x)
-    axes[0, 1].set_xticklabels(system_names)
-    axes[0, 1].legend()
-    
-    # Bias correlation matrix
-    sns.heatmap(corr_matrix, annot=True, cmap='coolwarm', vmin=-1, vmax=1, ax=axes[1, 0])
-    axes[1, 0].set_title('Correlation Between Cognitive Biases', fontsize=16)
-    
-    # Bias importance for prediction
-    # This is a placeholder - in a real implementation, you would extract feature importance
-    # from your trained model
-    importance = np.abs(np.random.normal(0.5, 0.2, size=len(bias_names)))
-    importance = importance / importance.sum()
-    
-    axes[1, 1].bar(bias_names, importance)
-    axes[1, 1].set_title('Cognitive Bias Importance for Prediction', fontsize=16)
-    axes[1, 1].set_xlabel('Cognitive Bias Type', fontsize=14)
-    axes[1, 1].set_ylabel('Relative Importance', fontsize=14)
-    axes[1, 1].set_xticklabels(bias_names, rotation=45, ha='right')
-    
-    plt.tight_layout()
-    plt.savefig(os.path.join(results_dir, 'prospect_theory_summary.png'), dpi=300)
-    
-    print(f"Visualizations saved to {results_dir}")
 
 def main():
     """
@@ -401,3 +235,6 @@ def main():
 
 if __name__ == "__main__":
     main()
+
+
+
