@@ -1,5 +1,5 @@
 """
-Dataset handling for Prospect Theory LLM Pipeline
+Dataset handling for Prospect Theory LLM Pipeline - Fixed Version
 
 This module provides dataset classes for loading and processing data for the
 Prospect Theory LLM Pipeline, including both Prospect Theory training data
@@ -128,17 +128,12 @@ class ProspectTheoryDataset(Dataset):
         }
         
         # Add bias labels if available
-            if 'bias_labels' in item and self.bias_names:
-                bias_labels_raw = item['bias_labels']
-                if isinstance(bias_labels_raw, dict):
-                    bias_labels = [float(bias_labels_raw.get(bias, 0.0)) for bias in self.bias_names]
-                elif isinstance(bias_labels_raw, list):
-                    bias_labels = [float(val) for val in bias_labels_raw]
-                else:
-                    # Fallback for unexpected format, though create_prospect_theory_dataset should prevent this
-                    print(f"Warning: Unexpected bias_labels format for item {idx}. Defaulting to zeros.")
-                    bias_labels = [0.0] * len(self.bias_names)
-                result['bias_labels'] = torch.tensor(bias_labels, dtype=torch.float32)
+        if 'bias_labels' in item and self.bias_names:
+            bias_labels = torch.tensor(
+                [item['bias_labels'].get(bias, 0) for bias in self.bias_names], 
+                dtype=torch.float
+            )
+            result['bias_labels'] = bias_labels
         
         # Add system label if available
         if 'system_label' in item:
@@ -268,6 +263,78 @@ class ProspectTheoryDataset(Dataset):
         
         return data
 
+    @staticmethod
+    def convert_anes_to_dataset(
+        json_folder: str,
+        output_path: str,
+        target_variable: str = "V241049",  # WHO WOULD R VOTE FOR: HARRIS VS TRUMP
+        include_classes: List[str] = None
+    ) -> None:
+        """
+        Convert ANES JSON files to dataset format.
+        
+        Args:
+            json_folder: Path to folder containing ANES JSON files
+            output_path: Path to save the converted dataset
+            target_variable: Variable code for the target classification
+            include_classes: List of classes to include (others will be filtered out)
+        """
+        if include_classes is None:
+            include_classes = ["Donald Trump", "Kamala Harris"]
+        
+        print(f"Converting ANES JSON files from {json_folder}...")
+        
+        dataset = []
+        processed_files = 0
+        skipped_files = 0
+        
+        # Process all JSON files in the folder
+        for filename in os.listdir(json_folder):
+            if not filename.endswith('.json'):
+                continue
+                
+            filepath = os.path.join(json_folder, filename)
+            
+            try:
+                with open(filepath, 'r') as f:
+                    respondent_data = json.load(f)
+                
+                # Extract features and target
+                text_features, structured_features = extract_legitimate_features(respondent_data.get('responses', []))
+                target_response = extract_target_response(respondent_data.get('responses', []), target_variable)
+                
+                # Skip if no valid target response
+                if target_response not in include_classes:
+                    skipped_files += 1
+                    continue
+                
+                # Create target label
+                target_label = include_classes.index(target_response)
+                
+                # Create dataset entry
+                entry = {
+                    'text': text_features,
+                    'anes_features': list(structured_features.values()),
+                    'target': target_label,
+                    'respondent_id': respondent_data.get('respondent_id', filename.replace('.json', ''))
+                }
+                
+                dataset.append(entry)
+                processed_files += 1
+                
+            except Exception as e:
+                print(f"Error processing {filename}: {e}")
+                skipped_files += 1
+                continue
+        
+        # Save dataset
+        os.makedirs(os.path.dirname(output_path), exist_ok=True)
+        with open(output_path, 'w') as f:
+            json.dump(dataset, f, indent=2)
+        
+        print(f"Converted {processed_files} files to dataset. Skipped {skipped_files} files.")
+        print(f"Dataset saved to {output_path}")
+
 
 class ANESDataset(Dataset):
     """
@@ -308,11 +375,34 @@ class ANESDataset(Dataset):
         }
 
 
-def extract_legitimate_features(responses):
+def extract_target_response(responses: List[Dict], target_variable: str) -> str:
+    """
+    Extract the target response for classification.
+    
+    Args:
+        responses: List of response dictionaries
+        target_variable: Variable code for the target
+        
+    Returns:
+        Target response string
+    """
+    for response in responses:
+        if response.get("variable_code") == target_variable:
+            return response.get("respondent_answer", "Unknown")
+    return "Unknown"
+
+
+def extract_legitimate_features(responses: List[Dict]) -> Tuple[str, Dict]:
     """
     Extract only legitimate, non-leaky features from the responses.
     
     Enhanced with more features and feature engineering.
+    
+    Args:
+        responses: List of response dictionaries from ANES data
+        
+    Returns:
+        Tuple of (text_representation, structured_features)
     """
     features = {}
     
@@ -336,8 +426,8 @@ def extract_legitimate_features(responses):
     # Political engagement
     features["political_interest"] = extract_response(responses, "V241004")  # Political interest
     features["campaign_interest"] = extract_response(responses, "V241005")   # Campaign interest
-    features["voter_registration"] = extract_response(responses, "V241001")  # Voter registration
-    features["voting_frequency"] = extract_response(responses, "V241002")    # How often votes
+    features["voter_registration"] = extract_response(responses, "V241013")  # Voter registration
+    features["voting_frequency"] = extract_response(responses, "V241031")    # How often votes
     
     # Economic views
     features["economic_views"] = extract_response(responses, "V241127")  # Economic views
@@ -380,370 +470,49 @@ def extract_legitimate_features(responses):
         features["political_engagement"] = 0.0
     
     # Convert features to a single text representation
-    input_text = (
-        f"Age: {features['age']}\n"
-        f"Gender: {features['gender']}\n"
-        f"Education: {features['education']}\n"
-        f"Income: {features['income']}\n"
-        f"Race: {features['race']}\n"
-        f"Political interest: {features['political_interest']}\n"
-        f"Campaign interest: {features['campaign_interest']}\n"
-        f"Voter registration: {features['voter_registration']}\n"
-        f"Voting frequency: {features['voting_frequency']}\n"
-        f"Economic views: {features['economic_views']}\n"
-        f"Economy better/worse: {features['economy_better_worse']}\n"
-        f"Personal finance: {features['personal_finance']}\n"
-        f"State: {features['state']}\n"
-        f"Urban/rural: {features['urban_rural']}\n"
-        f"Media consumption: {features['media_consumption']}\n"
-        f"Social media use: {features['social_media_use']}\n"
-        f"News interest: {features['news_interest']}\n"
-        f"Immigration importance: {features['immigration_importance']}\n"
-        f"Healthcare importance: {features['healthcare_importance']}\n"
-        f"Economy importance: {features['economy_importance']}\n"
-        f"COVID importance: {features['covid_importance']}\n"
-        f"Q: Who would this respondent vote for in a Harris vs Trump election?"
-    )
+    input_text = f"""Demographics:
+Age: {features['age']}
+Gender: {features['gender']}
+Education: {features['education']}
+Income: {features['income']}
+Race: {features['race']}
+
+Political Engagement:
+Political interest: {features['political_interest']}
+Campaign interest: {features['campaign_interest']}
+Voter registration: {features['voter_registration']}
+Voting frequency: {features['voting_frequency']}
+
+Economic Views:
+Economic views: {features['economic_views']}
+Economy better/worse: {features['economy_better_worse']}
+Personal finance: {features['personal_finance']}
+
+Geographic:
+State: {features['state']}
+Urban/Rural: {features['urban_rural']}
+
+Media:
+Media consumption: {features['media_consumption']}
+Social media use: {features['social_media_use']}
+News interest: {features['news_interest']}
+
+Policy Priorities:
+Immigration importance: {features['immigration_importance']}
+Healthcare importance: {features['healthcare_importance']}
+Economy importance: {features['economy_importance']}
+COVID importance: {features['covid_importance']}
+
+Question: Based on these characteristics and preferences, who would this respondent likely vote for in a presidential election?"""
     
-    return input_text, features
-
-
-def load_data(data_folder, variable_code, exclude_classes=None, include_classes=None):
-    """
-    Loads question-response pairs for a given ANES variable code.
-    Uses only legitimate features that don't leak the outcome.
+    # Create structured features for numerical processing
+    structured_features = {
+        'political_interest_num': features['political_interest_num'],
+        'campaign_interest_num': features['campaign_interest_num'],
+        'political_engagement': features['political_engagement'],
+        'age_numeric': 0.0,  # Would need proper age parsing
+        'income_numeric': 0.0  # Would need proper income parsing
+    }
     
-    This function is kept identical to the original implementation.
-    """
-    examples = []
-    label_map = {}
-    next_label_id = 0
-    features_data = []
-
-    excluded_count = 0
-    included_count = 0
-    missing_answer_count = 0
-    not_included_count = 0
-    matched_count = 0
-
-    if exclude_classes is None:
-        exclude_classes = ['Inapplicable', 'Refused', "Don't know", 'Error', "Don't know"]
-
-    json_files = [f for f in os.listdir(data_folder) if f.endswith('.json')]
-    print(f"Processing {len(json_files)} JSON files for variable {variable_code}")
-
-    for i, fname in enumerate(json_files):
-        if i % 500 == 0:
-            print(f"Progress: {i}/{len(json_files)} files processed")
-
-        try:
-            with open(os.path.join(data_folder, fname)) as f:
-                respondent = json.load(f)
-        except (json.JSONDecodeError, FileNotFoundError):
-            continue
-
-        responses = respondent.get("responses", [])
-        found = False
-        for item in responses:
-            if item.get("variable_code") != variable_code:
-                continue
-
-            question = item.get("full_question_text", "")
-            possible_answers = [opt["text"] for opt in item.get("possible_answers", [])]
-            respondent_answer = item.get("respondent_answer", None)
-
-            if not respondent_answer:
-                missing_answer_count += 1
-                continue
-
-            if respondent_answer in exclude_classes:
-                excluded_count += 1
-                continue
-
-            if include_classes and respondent_answer not in include_classes:
-                not_included_count += 1
-                continue
-
-            included_count += 1
-
-            if respondent_answer not in label_map:
-                label_map[respondent_answer] = next_label_id
-                next_label_id += 1
-            label = label_map[respondent_answer]
-
-            # Extract legitimate features instead of leaky ones
-            input_text, features = extract_legitimate_features(responses)
-            
-            examples.append((input_text, label))
-            features_data.append(features)
-            matched_count += 1
-            found = True
-            break  # Only use first match per respondent
-
-    # Summary logging
-    print(f"\n📊 Summary for variable {variable_code}:")
-    print(f"  ➤ Total JSON files: {len(json_files)}")
-    print(f"  ➤ Valid examples collected: {matched_count}")
-    print(f"  ➤ Unique labels: {len(label_map)}")
-    print(f"  ➤ Skipped due to missing answers: {missing_answer_count}")
-    print(f"  ➤ Skipped due to exclusion list: {excluded_count}")
-    print(f"  ➤ Skipped (not in include_classes): {not_included_count}")
-    if include_classes:
-        print(f"  ➤ Included only: {include_classes}")
-    print(f"  ➤ Final label map: {label_map}")
-
-    # Class distribution
-    label_counts = Counter([label for _, label in examples])
-    print("\n🔍 Class distribution (label IDs):", label_counts)
-    for label, count in label_counts.items():
-        for key, val in label_map.items():
-            if val == label:
-                print(f"  ➤ '{key}': {count} samples")
-
-    return examples, label_map, features_data
-
-
-def convert_anes_to_dataset(
-    json_folder: str,
-    output_path: str,
-    target_variable: str = "V241049",
-    include_classes: List[str] = None,
-    feature_codes: List[str] = None
-):
-    """
-    Convert ANES JSON files to a dataset for the pipeline.
-    
-    Args:
-        json_folder: Folder containing ANES JSON files
-        output_path: Path to save the dataset
-        target_variable: Variable code for the target
-        include_classes: List of classes to include
-        feature_codes: List of feature codes to include
-    """
-    if include_classes is None:
-        include_classes = ["Donald Trump", "Kamala Harris"]
-        
-    if feature_codes is None:
-        # Default legitimate features that don't leak the outcome
-        feature_codes = [
-            "V201507x",  # Age
-            "V201600",   # Gender
-            "V201510",   # Education level
-            "V201617x",  # Income
-            "V201549x",  # Race/ethnicity
-            "V241004",   # Political interest
-            "V241005",   # Campaign interest
-            "V241001",   # Voter registration
-            "V241002",   # Voting frequency
-            "V241127",   # Economic views
-            "V241111",   # Economy better/worse
-            "V241112",   # Personal financial situation
-            "V241017",   # State
-            "V241018",   # Urban/rural
-            "V241201",   # Media consumption
-            "V241242",   # Social media use
-            "V241211",   # News interest
-            "V241310",   # Immigration importance
-            "V241311",   # Healthcare importance
-            "V241312",   # Economy importance
-            "V241313",   # COVID importance
-        ]
-    
-    # Load data using the original function
-    examples, label_map, features_data = load_data(
-        json_folder, target_variable, include_classes=include_classes
-    )
-    
-    # Process features for one-hot encoding
-    categorical_features = set()
-    for features in features_data:
-        for key, value in features.items():
-            if isinstance(value, str) and not value.isdigit() and value != "NA":
-                categorical_features.add(key + '_' + value)
-    
-    # Create feature mapping
-    feature_mapping = {feature: i for i, feature in enumerate(sorted(categorical_features))}
-    
-    # Convert to the format expected by ProspectTheoryDataset
-    data = []
-    for (text, label), features in zip(examples, features_data):
-        # Add feature mapping to each example
-        features['_feature_mapping'] = feature_mapping
-        
-        data.append({
-            'text': text,
-            'anes_features': features,
-            'target': label
-        })
-    
-    # Save to file
-    os.makedirs(os.path.dirname(output_path), exist_ok=True)
-    with open(output_path, 'w') as f:
-        json.dump(data, f, indent=2)
-    
-    print(f"Created ANES dataset with {len(data)} examples at {output_path}")
-    print(f"Target distribution: {Counter([d['target'] for d in data])}")
-    print(f"Number of features: {len(feature_mapping) + sum(1 for f in features_data[0] if isinstance(features_data[0][f], (int, float)))}")
-    
-    return data
-
-
-def get_dataloaders(
-    prospect_data_path: str,
-    anes_data_path: str,
-    tokenizer,
-    batch_size: int = 16,
-    prospect_val_split: float = 0.2,
-    anes_val_split: float = 0.2
-) -> Tuple[DataLoader, DataLoader, DataLoader, DataLoader]:
-    """
-    Get dataloaders for Prospect Theory and ANES datasets.
-    
-    Args:
-        prospect_data_path: Path to Prospect Theory dataset
-        anes_data_path: Path to ANES dataset
-        tokenizer: Tokenizer for the LLM
-        batch_size: Batch size for dataloaders
-        prospect_val_split: Validation split for Prospect Theory dataset
-        anes_val_split: Validation split for ANES dataset
-        
-    Returns:
-        Tuple of (prospect_train_loader, prospect_val_loader, anes_train_loader, anes_val_loader)
-    """
-    # Load Prospect Theory dataset
-    prospect_dataset = ProspectTheoryDataset(prospect_data_path, tokenizer)
-    
-    # Split into train/val
-    prospect_train_size = int((1 - prospect_val_split) * len(prospect_dataset))
-    prospect_val_size = len(prospect_dataset) - prospect_train_size
-    
-    prospect_train_dataset, prospect_val_dataset = torch.utils.data.random_split(
-        prospect_dataset, [prospect_train_size, prospect_val_size]
-    )
-    
-    # Create dataloaders
-    prospect_train_loader = DataLoader(
-        prospect_train_dataset, batch_size=batch_size, shuffle=True
-    )
-    prospect_val_loader = DataLoader(
-        prospect_val_dataset, batch_size=batch_size
-    )
-    
-    # Load ANES dataset
-    anes_dataset = ProspectTheoryDataset(anes_data_path, tokenizer, is_anes=True)
-    
-    # Split into train/val
-    anes_train_size = int((1 - anes_val_split) * len(anes_dataset))
-    anes_val_size = len(anes_dataset) - anes_train_size
-    
-    anes_train_dataset, anes_val_dataset = torch.utils.data.random_split(
-        anes_dataset, [anes_train_size, anes_val_size]
-    )
-    
-    # Create dataloaders
-    anes_train_loader = DataLoader(
-        anes_train_dataset, batch_size=batch_size, shuffle=True
-    )
-    anes_val_loader = DataLoader(
-        anes_val_dataset, batch_size=batch_size
-    )
-    
-    return prospect_train_loader, prospect_val_loader, anes_train_loader, anes_val_loader
-
-
-if __name__ == "__main__":
-    # Example usage
-    import os
-    from transformers import RobertaTokenizer
-    
-    # Create dummy dataset
-    os.makedirs("data/prospect_theory", exist_ok=True)
-    ProspectTheoryDataset.create_prospect_theory_dataset(
-        "data/prospect_theory/dummy.json", num_examples=10
-    )
-    
-    # Load tokenizer and dataset
-    tokenizer = RobertaTokenizer.from_pretrained("roberta-base")
-    dataset = ProspectTheoryDataset("data/prospect_theory/dummy.json", tokenizer)
-    
-    # Print first example
-    print(dataset[0])
-
-
-    @staticmethod
-    def convert_anes_to_dataset(input_dir: str, output_path: str):
-        """
-        Converts raw ANES JSON files into a structured dataset for the pipeline.
-        
-        Args:
-            input_dir: Directory containing raw ANES JSON files.
-            output_path: Path to save the processed ANES dataset.
-        """
-        processed_data = []
-        anes_files = [f for f in os.listdir(input_dir) if f.endswith(".json")]
-        
-        # Define the target variable code
-        target_variable_code = "V241049" # WHO WOULD R VOTE FOR: HARRIS VS TRUMP
-        
-        for filename in tqdm(anes_files, desc="Processing ANES files"):
-            filepath = os.path.join(input_dir, filename)
-            with open(filepath, "r") as f:
-                respondent_data = json.load(f)
-            
-            # Extract legitimate features
-            features = extract_legitimate_features(respondent_data["responses"])
-            
-            # Extract target variable
-            target = None
-            for response in respondent_data["responses"]:
-                if response["variable_code"] == target_variable_code:
-                    # Map target values: 1 for Trump, 0 for Harris
-                    if response["respondent_answer"] == "Donald Trump":
-                        target = 1
-                    elif response["respondent_answer"] == "Kamala Harris":
-                        target = 0
-                    break
-            
-            if target is not None:
-                processed_data.append({
-                    "anes_features": features, # Keep features as dict for now
-                    "target": target
-                })
-        
-        # Convert categorical features in anes_features to numerical using one-hot encoding
-        # This step ensures all anes_features are numerical before being passed to the model
-        if processed_data:
-            df = pd.DataFrame(processed_data)
-            
-            # Separate target and features
-            targets = df["target"]
-            features_df = pd.json_normalize(df["anes_features"])
-            
-            # Identify categorical columns (object type)
-            categorical_cols = features_df.select_dtypes(include=["object"]).columns
-            
-            # Apply one-hot encoding
-            features_df_encoded = pd.get_dummies(features_df, columns=categorical_cols, prefix=categorical_cols)
-            
-            # Ensure all columns are numeric (convert remaining non-numeric to float, coercing errors)
-            for col in features_df_encoded.columns:
-                features_df_encoded[col] = pd.to_numeric(features_df_encoded[col], errors=\'coerce\').fillna(0.0)
-            
-            # Recombine and convert back to list of dicts
-            final_processed_data = []
-            for i in range(len(features_df_encoded)):
-                row_dict = features_df_encoded.iloc[i].to_dict()
-                row_dict["target"] = targets.iloc[i]
-                final_processed_data.append(row_dict)
-            
-            # Save to file
-            os.makedirs(os.path.dirname(output_path), exist_ok=True)
-            with open(output_path, "w") as f:
-                json.dump(final_processed_data, f, indent=2)
-            print(f"Converted ANES data saved to {output_path} with {len(final_processed_data)} examples.")
-        else:
-            print("No ANES data processed.")
-
-
-
+    return input_text.strip(), structured_features
 

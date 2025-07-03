@@ -1,8 +1,9 @@
 """
-Cognitive Bias Representation Module for Prospect Theory Pipeline
+Cognitive Bias Representation Module for Prospect Theory Pipeline - Fixed Version with Dimension Handling
 
 This module provides functionality to represent cognitive biases and System 1/2 thinking
 patterns based on LLM hidden layer representations.
+
 """
 
 import torch
@@ -15,7 +16,7 @@ from tqdm import tqdm
 from typing import Dict, List, Tuple, Optional, Union
 
 
-class CognitiveBiasRepresenter(nn.Module):
+class CognitiveBiasRepresenter:
     """
     Represent cognitive biases and System 1/2 thinking patterns based on LLM activations.
     
@@ -28,76 +29,85 @@ class CognitiveBiasRepresenter(nn.Module):
         llm_hidden_size: int, 
         bias_names: List[str], 
         system_adapter_bottleneck: int = 128, 
-        dropout: float = 0.1, # Added dropout for regularization
-        device: str = 'cpu'
+        device: str = 'cpu',
+        num_layers: int = 4  # Number of layers being extracted
     ):
         """
         Initialize the cognitive bias representer.
         
         Args:
-            llm_hidden_size: Hidden size of the LLM
+            llm_hidden_size: Hidden size of the LLM (single layer)
             bias_names: List of bias names to represent
             system_adapter_bottleneck: Bottleneck size for System 1/2 adapters
-            dropout: Dropout rate for adapters
             device: Device to run the model on
+            num_layers: Number of layers being extracted (for dimension calculation)
         """
-        super(CognitiveBiasRepresenter, self).__init__()
-        self.device = device
+        self.device = torch.device(device) if isinstance(device, str) else device
         self.bias_names = bias_names
-        self.cav_classifiers = {}  # To be populated with trained LogisticRegression models for each bias
         self.llm_hidden_size = llm_hidden_size
+        self.num_layers = num_layers
+        self.cav_classifiers = {}  # To be populated with trained LogisticRegression models for each bias
         
-        # System 1/2 Adapters (MoE-like)
+        # Calculate combined input size (multiple layers concatenated)
+        self.combined_input_size = llm_hidden_size * num_layers
+        
+        print(f"Initializing with single layer size: {llm_hidden_size}")
+        print(f"Number of layers: {num_layers}")
+        print(f"Combined input size: {self.combined_input_size}")
+        
+        # Dimension reduction layer to handle variable input sizes
+        self.input_projection = nn.Linear(self.combined_input_size, llm_hidden_size).to(self.device)
+        
+        # System 1/2 Adapters (MoE-like) - now using single layer size
         self.system1_adapter = nn.Sequential(
             nn.Linear(llm_hidden_size, system_adapter_bottleneck),
             nn.ReLU(),
-            nn.Dropout(dropout),
+            nn.Dropout(0.1),
             nn.Linear(system_adapter_bottleneck, llm_hidden_size)
-        ).to(device)
+        ).to(self.device)
         
         self.system2_adapter = nn.Sequential(
             nn.Linear(llm_hidden_size, system_adapter_bottleneck),
             nn.ReLU(),
-            nn.Dropout(dropout),
+            nn.Dropout(0.1),
             nn.Linear(system_adapter_bottleneck, llm_hidden_size)
-        ).to(device)
+        ).to(self.device)
         
-        # Router for System 1/2
-        self.system_router = nn.Linear(llm_hidden_size, 2).to(device)
+        # Router for System 1/2 - using single layer size
+        self.system_router = nn.Linear(llm_hidden_size, 2).to(self.device)
         
-        print(f"Initialized CognitiveBiasRepresenter with {len(bias_names)} biases on {device}")
+        print(f"Initialized CognitiveBiasRepresenter with {len(bias_names)} biases on {self.device}")
 
-    def forward(self, activations: Union[Dict[str, torch.Tensor], torch.Tensor]) -> Tuple[torch.Tensor, torch.Tensor]:
+    def _project_to_single_layer_size(self, combined_activations: torch.Tensor) -> torch.Tensor:
         """
-        Forward pass to get bias scores and system representations.
+        Project combined activations to single layer size.
         
         Args:
-            activations: Activations from LLM (dict of layer activations or tensor)
+            combined_activations: Concatenated activations from multiple layers
             
         Returns:
-            Tuple of (bias_scores, system_weights)
+            Projected activations with single layer size
         """
-        # Ensure activations are a tensor from the last layer if a dict is passed
-        if isinstance(activations, dict):
-            layer_name = list(activations.keys())[-1]
-            activations_tensor = activations[layer_name].to(self.device)
+        # Check if input size matches expected combined size
+        if combined_activations.shape[1] == self.combined_input_size:
+            # Use projection layer
+            return self.input_projection(combined_activations)
+        elif combined_activations.shape[1] == self.llm_hidden_size:
+            # Already single layer size
+            return combined_activations
         else:
-            activations_tensor = activations.to(self.device)
-
-        # Get bias scores (using trained CAVs - not part of NN forward pass)
-        # This part is handled by get_bias_scores method separately
-
-        # Get system representations
-        system_logits = self.system_router(activations_tensor)
-        system_weights = F.softmax(system_logits, dim=-1)
-        
-        rep1 = self.system1_adapter(activations_tensor)
-        rep2 = self.system2_adapter(activations_tensor)
-        
-        # Weighted average of system representations based on router
-        weighted_system_rep = system_weights[:, 0].unsqueeze(1) * rep1 + system_weights[:, 1].unsqueeze(1) * rep2
-        
-        return weighted_system_rep, system_weights
+            # Handle unexpected sizes
+            print(f"Warning: Unexpected input size {combined_activations.shape[1]}, expected {self.combined_input_size} or {self.llm_hidden_size}")
+            
+            # Create a new projection layer for this size
+            actual_size = combined_activations.shape[1]
+            if not hasattr(self, f'_temp_projection_{actual_size}'):
+                temp_projection = nn.Linear(actual_size, self.llm_hidden_size).to(self.device)
+                setattr(self, f'_temp_projection_{actual_size}', temp_projection)
+                print(f"Created temporary projection layer for size {actual_size}")
+            
+            temp_projection = getattr(self, f'_temp_projection_{actual_size}')
+            return temp_projection(combined_activations)
 
     def train_cav(
         self, 
@@ -134,179 +144,237 @@ class CognitiveBiasRepresenter(nn.Module):
         self.cav_classifiers[bias_name] = classifier
         return classifier
 
-    def get_bias_scores(
-        self, 
-        activations: Union[Dict[str, torch.Tensor], torch.Tensor]
-    ) -> torch.Tensor:
+    def train_cavs(self, dataloader, extractor) -> Dict:
         """
-        Get scores for each bias using trained CAVs.
+        Train Concept Activation Vectors for each bias.
         
         Args:
-            activations: Activations to get scores for (dict of layer activations or tensor)
+            dataloader: DataLoader containing training data
+            extractor: HiddenLayerExtractor instance
             
         Returns:
-            Tensor of bias scores [batch_size, num_biases]
+            Dictionary of training metrics
         """
-        bias_scores = []
+        print("Training CAVs for cognitive biases...")
         
-        # Convert to numpy for scikit-learn
-        if isinstance(activations, dict):
-            # If activations is a dict of layer activations, use the last layer
-            layer_name = list(activations.keys())[-1]
-            activations_np = activations[layer_name].cpu().numpy()
-        else:
-            # If activations is already a tensor
-            activations_np = activations.cpu().numpy()
+        # Collect activations for each bias
+        bias_activations = {bias: {'positive': [], 'negative': []} for bias in self.bias_names}
+        
+        for batch in tqdm(dataloader, desc="Collecting activations for CAV training"):
+            texts = batch['text']
+            bias_labels = batch['bias_labels']
             
-        for bias_name in self.bias_names:
-            if bias_name in self.cav_classifiers:
-                # Predict probability of positive class (bias present)
-                score = self.cav_classifiers[bias_name].predict_proba(activations_np)[:, 1]
-                bias_scores.append(torch.tensor(score, dtype=torch.float).unsqueeze(1))
-            else:
-                # Return zeros if CAV not trained for this bias
-                # This should ideally not happen if train_cavs is called first
-                print(f"Warning: CAV for {bias_name} not trained. Returning zeros.")
-                bias_scores.append(torch.zeros(activations_np.shape[0], 1, dtype=torch.float))
+            # Extract activations from LLM
+            activations = extractor.extract_activations(texts)
+            
+            # Combine activations from all layers
+            combined_activations = torch.cat(list(activations.values()), dim=1)
+            
+            print(f"Combined activations shape: {combined_activations.shape}")
+            
+            # Separate positive and negative examples for each bias
+            for i, bias in enumerate(self.bias_names):
+                positive_mask = bias_labels[:, i] == 1
+                negative_mask = bias_labels[:, i] == 0
                 
-        return torch.cat(bias_scores, dim=1)
+                if positive_mask.sum() > 0:
+                    bias_activations[bias]['positive'].append(combined_activations[positive_mask])
+                if negative_mask.sum() > 0:
+                    bias_activations[bias]['negative'].append(combined_activations[negative_mask])
+        
+        # Train CAV for each bias
+        trained_cavs = 0
+        for bias in self.bias_names:
+            if bias_activations[bias]['positive'] and bias_activations[bias]['negative']:
+                positive_acts = torch.cat(bias_activations[bias]['positive']).numpy()
+                negative_acts = torch.cat(bias_activations[bias]['negative']).numpy()
+                
+                if len(positive_acts) > 0 and len(negative_acts) > 0:
+                    self.train_cav(bias, positive_acts, negative_acts)
+                    trained_cavs += 1
+                else:
+                    print(f"Warning: Insufficient data for bias {bias}")
+            else:
+                print(f"Warning: No data found for bias {bias}")
+        
+        print(f"Successfully trained {trained_cavs}/{len(self.bias_names)} CAVs")
+        return {'cavs_trained': trained_cavs, 'total_biases': len(self.bias_names)}
 
-    def train_system_components(
-        self, 
-        dataloader, 
-        llm_extractor, 
-        num_epochs: int = 5, 
-        lr: float = 1e-4
-    ) -> Dict:
+    def train_system_components(self, dataloader, extractor, num_epochs=10, lr=1e-3) -> Dict:
         """
-        Train System 1/2 adapters and router.
+        Train System 1/2 components.
         
         Args:
-            dataloader: DataLoader for training data
-            llm_extractor: HiddenLayerExtractor instance
-            num_epochs: Number of epochs to train for
+            dataloader: DataLoader containing training data
+            extractor: HiddenLayerExtractor instance
+            num_epochs: Number of training epochs
             lr: Learning rate
             
         Returns:
             Dictionary of training metrics
         """
-        # Optimizer for System 1/2 adapters and router
-        system_params = list(self.system1_adapter.parameters()) + \
-                        list(self.system2_adapter.parameters()) + \
-                        list(self.system_router.parameters())
-        optimizer = torch.optim.Adam(system_params, lr=lr)
-        loss_fn = nn.CrossEntropyLoss()
+        print("Training System 1/2 components...")
         
-        # Training loop
-        metrics = {'epoch_losses': [], 'epoch_accuracies': []}
+        # Optimizer for system components
+        optimizer = torch.optim.Adam(
+            list(self.input_projection.parameters()) +
+            list(self.system1_adapter.parameters()) + 
+            list(self.system2_adapter.parameters()) + 
+            list(self.system_router.parameters()), 
+            lr=lr
+        )
         
-        self.train() # Set model to training mode
+        epoch_losses = []
+        
         for epoch in range(num_epochs):
             total_loss = 0
-            correct = 0
-            total = 0
+            num_batches = 0
             
-            for batch in tqdm(dataloader, desc=f"System Components Epoch {epoch+1}/{num_epochs}"):
+            for batch in tqdm(dataloader, desc=f"System training epoch {epoch+1}/{num_epochs}"):
                 texts = batch['text']
-                true_system_labels = batch['system_label'].to(self.device)
+                system_labels = batch['system_label'].to(self.device)
                 
                 # Extract activations
-                activations = llm_extractor.extract_activations(texts)
-                layer_name = list(activations.keys())[-1]
-                activations_tensor = activations[layer_name].to(self.device)
+                activations = extractor.extract_activations(texts)
+                combined_activations = torch.cat(list(activations.values()), dim=1).to(self.device)
                 
-                # Forward pass
-                optimizer.zero_grad()
-                system_logits = self.system_router(activations_tensor)
-                loss = loss_fn(system_logits, true_system_labels)
+                print(f"Batch {num_batches}: Combined activations shape: {combined_activations.shape}")
+                
+                # Project to single layer size
+                projected_activations = self._project_to_single_layer_size(combined_activations)
+                
+                print(f"Batch {num_batches}: Projected activations shape: {projected_activations.shape}")
+                
+                # Forward pass through adapters
+                system1_rep = self.system1_adapter(projected_activations)
+                system2_rep = self.system2_adapter(projected_activations)
+                
+                # Router predictions
+                router_logits = self.system_router(projected_activations)
+                
+                # Loss computation
+                router_loss = F.cross_entropy(router_logits, system_labels)
                 
                 # Backward pass
-                loss.backward()
+                optimizer.zero_grad()
+                router_loss.backward()
+                
+                # Gradient clipping
+                torch.nn.utils.clip_grad_norm_(
+                    list(self.input_projection.parameters()) +
+                    list(self.system1_adapter.parameters()) + 
+                    list(self.system2_adapter.parameters()) + 
+                    list(self.system_router.parameters()), 
+                    max_norm=1.0
+                )
+                
                 optimizer.step()
                 
-                # Track metrics
-                total_loss += loss.item() * len(true_system_labels)
-                preds = torch.argmax(system_logits, dim=1)
-                correct += (preds == true_system_labels).sum().item()
-                total += len(true_system_labels)
+                total_loss += router_loss.item()
+                num_batches += 1
             
-            # Epoch metrics
-            epoch_loss = total_loss / total
-            epoch_acc = correct / total
-            metrics['epoch_losses'].append(epoch_loss)
-            metrics['epoch_accuracies'].append(epoch_acc)
-            
-            print(f"System Components Epoch {epoch+1}/{num_epochs}: Loss={epoch_loss:.4f}, Acc={epoch_acc:.4f}")
-        self.eval() # Set model back to eval mode
-        return metrics
+            avg_loss = total_loss / num_batches if num_batches > 0 else 0
+            epoch_losses.append(avg_loss)
+            print(f"Epoch {epoch+1}/{num_epochs}, Average Loss: {avg_loss:.4f}")
+        
+        return {
+            'system_training_losses': epoch_losses,
+            'final_loss': epoch_losses[-1] if epoch_losses else 0,
+            'epochs_completed': num_epochs
+        }
 
-    def train_cavs(self, dataloader, llm_extractor) -> Dict[str, LogisticRegression]:
+    def get_bias_scores(self, activations: Dict[str, torch.Tensor]) -> torch.Tensor:
         """
-        Train CAVs for each bias type.
+        Get bias scores for given activations.
         
         Args:
-            dataloader: DataLoader for training data
-            llm_extractor: HiddenLayerExtractor instance
+            activations: Dictionary of layer activations
             
         Returns:
-            Dictionary mapping bias names to CAV classifiers
+            Tensor of bias scores [batch_size, num_biases]
         """
-        # Collect activations and labels for each bias
-        bias_activations = {bias: {'positive': [], 'negative': []} for bias in self.bias_names}
+        # Combine activations from all layers
+        combined_activations = torch.cat(list(activations.values()), dim=1)
         
-        with torch.no_grad(): # No gradient needed for feature extraction
-            for batch in tqdm(dataloader, desc="Collecting activations for CAVs"):
-                texts = batch['text']
-                bias_labels = batch['bias_labels'].cpu().numpy()
-                
-                # Extract activations
-                activations = llm_extractor.extract_activations(texts)
-                layer_name = list(activations.keys())[-1]
-                activations_np = activations[layer_name].cpu().numpy()
-                
-                # Collect activations for each bias
-                for i, bias_name in enumerate(self.bias_names):
-                    for j in range(len(texts)):
-                        if bias_labels[j, i] == 1:
-                            bias_activations[bias_name]['positive'].append(activations_np[j])
-                        else:
-                            bias_activations[bias_name]['negative'].append(activations_np[j])
+        # Get bias scores using trained CAVs
+        bias_scores = []
         
-        # Train CAVs for each bias
-        for bias_name in self.bias_names:
-            positive = np.array(bias_activations[bias_name]['positive'])
-            negative = np.array(bias_activations[bias_name]['negative'])
+        for bias in self.bias_names:
+            if bias in self.cav_classifiers:
+                # Use CAV to get bias score
+                classifier = self.cav_classifiers[bias]
+                scores = classifier.predict_proba(combined_activations.cpu().numpy())[:, 1]  # Probability of positive class
+                bias_scores.append(torch.tensor(scores, dtype=torch.float))
+            else:
+                # Default to zero if CAV not trained
+                bias_scores.append(torch.zeros(combined_activations.shape[0], dtype=torch.float))
+        
+        return torch.stack(bias_scores, dim=1)
+
+    def get_system_representations(self, activations: Dict[str, torch.Tensor]) -> Tuple[torch.Tensor, torch.Tensor]:
+        """
+        Get System 1/2 weighted representations.
+        
+        Args:
+            activations: Dictionary of layer activations
             
-            if len(positive) == 0 or len(negative) == 0:
-                print(f"Skipping CAV for {bias_name}: Not enough examples. Positive: {len(positive)}, Negative: {len(negative)}")
-                continue
-                
-            print(f"Training CAV for {bias_name}: {len(positive)} positive, {len(negative)} negative examples")
-            self.train_cav(bias_name, positive, negative)
-            
-        return self.cav_classifiers
-    
+        Returns:
+            Tuple of (weighted_representation, system_weights)
+        """
+        # Combine activations from all layers
+        combined_activations = torch.cat(list(activations.values()), dim=1).to(self.device)
+        
+        # Project to single layer size
+        projected_activations = self._project_to_single_layer_size(combined_activations)
+        
+        # Get system representations
+        system1_rep = self.system1_adapter(projected_activations)
+        system2_rep = self.system2_adapter(projected_activations)
+        
+        # Get router weights
+        router_logits = self.system_router(projected_activations)
+        system_weights = F.softmax(router_logits, dim=1)
+        
+        # Weighted combination
+        weighted_rep = (system_weights[:, 0:1] * system1_rep + 
+                       system_weights[:, 1:2] * system2_rep)
+        
+        return weighted_rep, system_weights
+
     def save(self, path: str) -> None:
         """
-        Save the model to a file.
+        Save the bias representer to a file.
         
         Args:
             path: Path to save the model to
         """
-        torch.save({
-            'system1_adapter_state_dict': self.system1_adapter.state_dict(),
-            'system2_adapter_state_dict': self.system2_adapter.state_dict(),
-            'system_router_state_dict': self.system_router.state_dict(),
+        save_dict = {
             'bias_names': self.bias_names,
-            'cav_classifiers': self.cav_classifiers,
-            'llm_hidden_size': self.llm_hidden_size # Save hidden size for loading
-        }, path)
+            'llm_hidden_size': self.llm_hidden_size,
+            'num_layers': self.num_layers,
+            'combined_input_size': self.combined_input_size,
+            'input_projection': self.input_projection.state_dict(),
+            'system1_adapter': self.system1_adapter.state_dict(),
+            'system2_adapter': self.system2_adapter.state_dict(),
+            'system_router': self.system_router.state_dict(),
+            'cav_classifiers': {}
+        }
+        
+        # Save CAV classifiers
+        for bias_name, classifier in self.cav_classifiers.items():
+            save_dict['cav_classifiers'][bias_name] = {
+                'coef_': classifier.coef_,
+                'intercept_': classifier.intercept_,
+                'classes_': classifier.classes_
+            }
+        
+        torch.save(save_dict, path)
         print(f"Saved CognitiveBiasRepresenter to {path}")
-    
+
     @classmethod
     def load(cls, path: str, device: str = 'cpu') -> 'CognitiveBiasRepresenter':
         """
-        Load the model from a file.
+        Load the bias representer from a file.
         
         Args:
             path: Path to load the model from
@@ -315,56 +383,64 @@ class CognitiveBiasRepresenter(nn.Module):
         Returns:
             Loaded CognitiveBiasRepresenter
         """
-        checkpoint = torch.load(path, map_location=device)
-        bias_names = checkpoint['bias_names']
-        llm_hidden_size = checkpoint['llm_hidden_size']
+        save_dict = torch.load(path, map_location=device)
         
-        model = cls(llm_hidden_size, bias_names, device=device)
-        model.system1_adapter.load_state_dict(checkpoint['system1_adapter_state_dict'])
-        model.system2_adapter.load_state_dict(checkpoint['system2_adapter_state_dict'])
-        model.system_router.load_state_dict(checkpoint['system_router_state_dict'])
-        model.cav_classifiers = checkpoint['cav_classifiers']
+        # Create instance
+        representer = cls(
+            llm_hidden_size=save_dict['llm_hidden_size'],
+            bias_names=save_dict['bias_names'],
+            num_layers=save_dict.get('num_layers', 4),
+            device=device
+        )
+        
+        # Load neural network components
+        representer.input_projection.load_state_dict(save_dict['input_projection'])
+        representer.system1_adapter.load_state_dict(save_dict['system1_adapter'])
+        representer.system2_adapter.load_state_dict(save_dict['system2_adapter'])
+        representer.system_router.load_state_dict(save_dict['system_router'])
+        
+        # Load CAV classifiers
+        for bias_name, cav_data in save_dict['cav_classifiers'].items():
+            classifier = LogisticRegression()
+            classifier.coef_ = cav_data['coef_']
+            classifier.intercept_ = cav_data['intercept_']
+            classifier.classes_ = cav_data['classes_']
+            representer.cav_classifiers[bias_name] = classifier
         
         print(f"Loaded CognitiveBiasRepresenter from {path}")
-        return model
+        return representer
 
 
 if __name__ == "__main__":
-    # Example usage with RoBERTa model from original notebook
-    import torch.utils.data
-    from dataset import ProspectTheoryDataset
-    from llm_extractor import HiddenLayerExtractor
-    from transformers import AutoTokenizer
+    # Example usage
+    import torch
     
-    # Create dummy dataset
-    os.makedirs("data/prospect_theory", exist_ok=True)
-    ProspectTheoryDataset.create_prospect_theory_dataset(
-        "data/prospect_theory/dummy.json", num_examples=100
+    # Test dimension handling
+    print("Testing CognitiveBiasRepresenter with dimension handling...")
+    
+    bias_names = ["anchoring", "framing", "availability", "confirmation_bias", "loss_aversion"]
+    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+    
+    # Initialize representer
+    representer = CognitiveBiasRepresenter(
+        llm_hidden_size=1024,  # Single layer size
+        bias_names=bias_names,
+        num_layers=4,  # Number of layers being extracted
+        device=device
     )
     
-    # Load tokenizer and dataset
-    tokenizer = AutoTokenizer.from_pretrained("roberta-base")
-    dataset = ProspectTheoryDataset("data/prospect_theory/dummy.json", tokenizer)
-    dataloader = torch.utils.data.DataLoader(dataset, batch_size=16, shuffle=True)
+    # Test with different input sizes
+    print("\nTesting dimension projection:")
     
-    # Initialize extractor and representer
-    extractor = HiddenLayerExtractor("roberta-base", [-1])
-    representer = CognitiveBiasRepresenter(extractor.get_hidden_size(), dataset.bias_names)
+    # Test with combined size (4 layers * 1024 = 4096)
+    combined_input = torch.randn(8, 4096).to(device)
+    projected = representer._project_to_single_layer_size(combined_input)
+    print(f"Combined input {combined_input.shape} -> Projected {projected.shape}")
     
-    # Train CAVs
-    representer.train_cavs(dataloader, extractor)
+    # Test with single layer size
+    single_input = torch.randn(8, 1024).to(device)
+    projected_single = representer._project_to_single_layer_size(single_input)
+    print(f"Single input {single_input.shape} -> Projected {projected_single.shape}")
     
-    # Train system components
-    representer.train_system_components(dataloader, extractor, num_epochs=2)
-    
-    # Test on a single example
-    text = "Political interest: Very much interested\nCampaign interest: Somewhat interested\nEconomic views: Liberal\nState: California\nMedia consumption: Daily\nQ: Who would this respondent vote for in a Harris vs Trump election?"
-    activations = extractor.extract_activations(text)
-    
-    bias_scores = representer.get_bias_scores(activations)
-    weighted_rep, system_weights = representer(activations) # Use forward pass
-    
-    print(f"Bias scores: {bias_scores}")
-    print(f"System weights: {system_weights}")
-
+    print("Dimension handling test completed successfully!")
 
