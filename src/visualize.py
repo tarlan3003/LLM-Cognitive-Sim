@@ -1,3 +1,4 @@
+
 """
 Advanced visualization and interpretability tools for Prospect Theory LLM Pipeline - Fixed Version.
 
@@ -322,7 +323,7 @@ def plot_threshold_performance(
     
     ax.plot(thresholds, accuracies, 'o-', label='Accuracy', linewidth=2)
     ax.plot(thresholds, precisions, 's-', label='Precision', linewidth=2)
-    ax.plot(thresholds, recalls, '^-', label='Recall', linewidth=2)
+    ax.plot(thresholds, recalls, '^- ', label='Recall', linewidth=2)
     ax.plot(thresholds, f1_scores, 'd-', label='F1-Score', linewidth=2)
     
     ax.set_xlabel('Classification Threshold')
@@ -349,8 +350,9 @@ def generate_visualizations(
     classifier,
     metrics: Dict,
     save_dir: str,
-    bias_names: List[str],
-    target_names: List[str] = None
+    bias_names: Optional[List[str]] = None,
+    target_names: List[str] = None,
+    use_bert_classifier: bool = False
 ):
     """
     Generate all visualizations for the Prospect Theory LLM Pipeline.
@@ -362,8 +364,9 @@ def generate_visualizations(
         classifier: Trained classifier
         metrics: Evaluation metrics
         save_dir: Directory to save visualizations
-        bias_names: List of bias names
+        bias_names: List of bias names (only for non-BERT classifier)
         target_names: Names of target classes
+        use_bert_classifier: Whether the classifier is BERT-based
     """
     if target_names is None:
         target_names = ['Trump', 'Harris']
@@ -373,63 +376,66 @@ def generate_visualizations(
     # Create save directory
     os.makedirs(save_dir, exist_ok=True)
     
-    # Collect data for visualization
-    all_bias_scores = []
-    all_system_weights = []
-    all_targets = []
-    
-    if classifier is not None:
-        classifier.eval()
-        device = next(classifier.parameters()).device
+    if not use_bert_classifier:
+        all_bias_scores = []
+        all_system_weights = []
+        all_targets = []
         
-        with torch.no_grad():
-            for batch in val_dataloader:
-                texts = batch['text']
-                targets = batch['target']
+        if classifier is not None:
+            classifier.eval()
+            device = next(classifier.parameters()).device
+            
+            with torch.no_grad():
+                for batch in val_dataloader:
+                    texts = batch['text']
+                    targets = batch['target']
+                    
+                    # Extract activations
+                    activations = extractor.extract_activations(texts)
+                    
+                    # Get bias scores and system representations
+                    bias_scores = bias_representer.get_bias_scores(activations)
+                    _, system_weights = bias_representer.get_system_representations(activations)
+                    
+                    all_bias_scores.append(bias_scores.cpu().numpy())
+                    all_system_weights.append(system_weights.cpu().numpy())
+                    all_targets.append(targets.numpy())
+            
+            # Concatenate all data
+            all_bias_scores = np.concatenate(all_bias_scores, axis=0)
+            all_system_weights = np.concatenate(all_system_weights, axis=0)
+            all_targets = np.concatenate(all_targets, axis=0)
+            
+            # Generate individual plots for non-BERT classifier
+            if bias_names:
+                try:
+                    # 1. Bias scores by class
+                    plot_bias_scores_by_class(
+                        all_bias_scores, all_targets, bias_names, target_names,
+                        save_path=os.path.join(save_dir, "bias_scores_by_class.png")
+                    )
+                except Exception as e:
+                    print(f"Error generating bias scores plot: {e}")
                 
-                # Extract activations
-                activations = extractor.extract_activations(texts)
+                try:
+                    # 2. System weights distribution
+                    plot_system_weights_distribution(
+                        all_system_weights, all_targets, target_names,
+                        save_path=os.path.join(save_dir, "system_weights_distribution.png")
+                    )
+                except Exception as e:
+                    print(f"Error generating system weights plot: {e}")
                 
-                # Get bias scores and system representations
-                bias_scores = bias_representer.get_bias_scores(activations)
-                _, system_weights = bias_representer.get_system_representations(activations)
-                
-                all_bias_scores.append(bias_scores.cpu().numpy())
-                all_system_weights.append(system_weights.cpu().numpy())
-                all_targets.append(targets.numpy())
-        
-        # Concatenate all data
-        all_bias_scores = np.concatenate(all_bias_scores, axis=0)
-        all_system_weights = np.concatenate(all_system_weights, axis=0)
-        all_targets = np.concatenate(all_targets, axis=0)
-        
-        # Generate individual plots
-        try:
-            # 1. Bias scores by class
-            plot_bias_scores_by_class(
-                all_bias_scores, all_targets, bias_names, target_names,
-                save_path=os.path.join(save_dir, "bias_scores_by_class.png")
-            )
-        except Exception as e:
-            print(f"Error generating bias scores plot: {e}")
-        
-        try:
-            # 2. System weights distribution
-            plot_system_weights_distribution(
-                all_system_weights, all_targets, target_names,
-                save_path=os.path.join(save_dir, "system_weights_distribution.png")
-            )
-        except Exception as e:
-            print(f"Error generating system weights plot: {e}")
-        
-        try:
-            # 3. Bias correlation matrix
-            plot_bias_correlation_matrix(
-                all_bias_scores, bias_names,
-                save_path=os.path.join(save_dir, "bias_correlation_matrix.png")
-            )
-        except Exception as e:
-            print(f"Error generating bias correlation plot: {e}")
+                try:
+                    # 3. Bias correlation matrix
+                    plot_bias_correlation_matrix(
+                        all_bias_scores, bias_names,
+                        save_path=os.path.join(save_dir, "bias_correlation_matrix.png")
+                    )
+                except Exception as e:
+                    print(f"Error generating bias correlation plot: {e}")
+    else:
+        print("Skipping bias and system weight visualizations for BERT classifier.")
     
     # 4. Training curves
     if 'training_metrics' in metrics:
@@ -483,4 +489,8 @@ if __name__ == "__main__":
     # Test plotting style
     set_plotting_style()
     print("Plotting style configured successfully!")
+
+
+
+
 

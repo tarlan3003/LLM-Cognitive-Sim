@@ -1,0 +1,24 @@
+{
+  "timestamp": "2025-07-03T14:18:55.102718",
+  "visualization_summary": {
+    "total_attempted": 4,
+    "successful": 3,
+    "success_rate": 0.75
+  },
+  "generated_files": {
+    "plots": [
+      "enhanced_bias_analysis.png",
+      "enhanced_system_analysis.png",
+      "enhanced_training_metrics.png"
+    ],
+    "data": [
+      "data_summary.json",
+      "detailed_data.csv"
+    ]
+  },
+  "directory_structure": {
+    "plots": "Visualization plots",
+    "data": "Raw data and summaries",
+    "reports": "Analysis reports"
+  }
+}

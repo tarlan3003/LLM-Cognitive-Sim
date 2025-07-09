@@ -1,12 +1,12 @@
+
 """
 Main Pipeline for Prospect Theory LLM - Fixed Version with Tokenizer Fix
 
 This is the corrected main script that implements the best performing model
-and produces the most meaningful results for the master's thesis on
+and produces the most meaningful results for the master\"s thesis on
 Prospect Theory and voting behavior.
 
 Author: Tarlan Sultanov
-Fixed by: Manus AI (with tokenizer error fix)
 """
 
 import os
@@ -23,7 +23,7 @@ from transformers import AutoTokenizer, AutoModel
 from tqdm import tqdm
 
 # Import custom modules - FIXED: Removed src. prefix
-from src.dataset import ProspectTheoryDataset, extract_legitimate_features
+from src.dataset import ProspectTheoryDataset, ANESBertDataset
 from src.llm_extractor import HiddenLayerExtractor
 from src.bias_representer import CognitiveBiasRepresenter
 from src.anes_classifier import ProspectTheoryANESClassifier, FocalLoss, train_anes_classifier
@@ -99,7 +99,9 @@ def run_full_pipeline(
     num_epochs_anes=BEST_NUM_EPOCHS_ANES,
     seed=BEST_SEED,
     save_dir="models",
-    results_dir="results"
+    results_dir="results",
+    use_bert_classifier: bool = False, # New parameter
+    bert_model_name: str = "bert-base-uncased" # New parameter
 ):
     """
     Run the full Prospect Theory LLM pipeline with best performing parameters.
@@ -116,6 +118,8 @@ def run_full_pipeline(
         seed: Random seed for reproducibility
         save_dir: Directory to save models
         results_dir: Directory to save results
+        use_bert_classifier: Whether to use the BERT-based classifier
+        bert_model_name: Model name for the BERT classifier
     
     Returns:
         Dictionary of evaluation metrics
@@ -141,55 +145,62 @@ def run_full_pipeline(
         tokenizer = tokenizer_result
         actual_model_name = model_name
     
-    # Check if Prospect Theory dataset exists, create if not
-    if not os.path.exists(prospect_path):
-        print("Creating Prospect Theory dataset...")
-        os.makedirs(os.path.dirname(prospect_path), exist_ok=True)
-        ProspectTheoryDataset.create_prospect_theory_dataset(prospect_path)
-    
-    # Load Prospect Theory dataset
-    print("Loading Prospect Theory dataset...")
-    prospect_dataset = ProspectTheoryDataset(prospect_path, tokenizer)
-    
-    # Split dataset
-    train_dataset, val_dataset = train_test_split(prospect_dataset, test_size=0.2, random_state=seed)
-    
-    # Create dataloaders
-    train_dataloader = DataLoader(train_dataset, batch_size=batch_size, shuffle=True)
-    val_dataloader = DataLoader(val_dataset, batch_size=batch_size)
-    
-    # Initialize hidden layer extractor
-    print("Initializing hidden layer extractor...")
-    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-    print(f"Using device: {device}")
-    
-    try:
-        extractor = HiddenLayerExtractor(actual_model_name, hidden_layers, device=device)
-    except Exception as e:
-        print(f"Error initializing extractor with {actual_model_name}: {e}")
-        print("Trying with roberta-base as fallback...")
-        extractor = HiddenLayerExtractor("roberta-base", [-1, -2], device=device)
-        tokenizer = AutoTokenizer.from_pretrained("roberta-base", use_fast=False)
-    
-    # Initialize cognitive bias representer
-    print("Initializing cognitive bias representer...")
-    bias_representer = CognitiveBiasRepresenter(
-        llm_hidden_size=extractor.get_hidden_size(),
-        bias_names=prospect_dataset.bias_names,
-        system_adapter_bottleneck=BEST_SYSTEM_ADAPTER_DIM,
-        device=device
-    )
-    
-    # Train cognitive bias representer
-    print("Training cognitive bias representer...")
-    bias_metrics = bias_representer.train_cavs(train_dataloader, extractor) # Train CAVs first
-    bias_metrics.update(bias_representer.train_system_components(train_dataloader, extractor, num_epochs=num_epochs_prospect, lr=learning_rate)) # Then train system components
-    
-    # Save bias representer
-    bias_representer_path = os.path.join(save_dir, "bias_representer.pt")
-    bias_representer.save(bias_representer_path)
-    print(f"Bias representer saved to {bias_representer_path}")
-    
+    # Only run Prospect Theory training if not using BERT classifier
+    if not use_bert_classifier:
+        # Check if Prospect Theory dataset exists, create if not
+        if not os.path.exists(prospect_path):
+            print("Creating Prospect Theory dataset...")
+            os.makedirs(os.path.dirname(prospect_path), exist_ok=True)
+            ProspectTheoryDataset.create_prospect_theory_dataset(prospect_path)
+        
+        # Load Prospect Theory dataset
+        print("Loading Prospect Theory dataset...")
+        prospect_dataset = ProspectTheoryDataset(prospect_path, tokenizer)
+        
+        # Split dataset
+        train_dataset, val_dataset = train_test_split(prospect_dataset, test_size=0.2, random_state=seed)
+        
+        # Create dataloaders
+        train_dataloader = DataLoader(train_dataset, batch_size=batch_size, shuffle=True)
+        val_dataloader = DataLoader(val_dataset, batch_size=batch_size)
+        
+        # Initialize hidden layer extractor
+        print("Initializing hidden layer extractor...")
+        device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+        print(f"Using device: {device}")
+        
+        try:
+            extractor = HiddenLayerExtractor(actual_model_name, hidden_layers, device=device)
+        except Exception as e:
+            print(f"Error initializing extractor with {actual_model_name}: {e}")
+            print("Trying with roberta-base as fallback...")
+            extractor = HiddenLayerExtractor("roberta-base", [-1, -2], device=device)
+            tokenizer = AutoTokenizer.from_pretrained("roberta-base", use_fast=False)
+        
+        # Initialize cognitive bias representer
+        print("Initializing cognitive bias representer...")
+        bias_representer = CognitiveBiasRepresenter(
+            llm_hidden_size=extractor.get_hidden_size(),
+            bias_names=prospect_dataset.bias_names,
+            system_adapter_bottleneck=BEST_SYSTEM_ADAPTER_DIM,
+            device=device
+        )
+        
+        # Train cognitive bias representer
+        print("Training cognitive bias representer...")
+        bias_metrics = bias_representer.train_cavs(train_dataloader, extractor) # Train CAVs first
+        bias_metrics.update(bias_representer.train_system_components(train_dataloader, extractor, num_epochs=num_epochs_prospect, lr=learning_rate)) # Then train system components
+        
+        # Save bias representer
+        bias_representer_path = os.path.join(save_dir, "bias_representer.pt")
+        bias_representer.save(bias_representer_path)
+        print(f"Bias representer saved to {bias_representer_path}")
+    else:
+        # If using BERT classifier, these are not needed
+        extractor = None
+        bias_representer = None
+        prospect_dataset = None # To avoid issues with bias_names later
+
     # Process ANES dataset
     print("Processing ANES dataset...")
     anes_dataset_path = "data/anes/anes_dataset.json"
@@ -209,7 +220,15 @@ def run_full_pipeline(
     # Load ANES dataset
     print("Loading ANES dataset...")
     try:
-        anes_dataset = ProspectTheoryDataset(anes_dataset_path, tokenizer, is_anes=True, generate_text_from_anes=True)
+        # Load data for BERT classifier
+        if use_bert_classifier:
+            with open(anes_dataset_path, 'r') as f:
+                anes_data = json.load(f)
+            texts = [item['text'] for item in anes_data]
+            labels = [item['target'] for item in anes_data]
+            anes_dataset = ANESBertDataset(texts, labels, tokenizer)
+        else:
+            anes_dataset = ProspectTheoryDataset(anes_dataset_path, tokenizer, is_anes=True, generate_text_from_anes=True)
     except Exception as e:
         print(f"Error loading ANES dataset: {e}")
         return {"error": "ANES dataset loading failed"}
@@ -231,9 +250,11 @@ def run_full_pipeline(
             bias_representer=bias_representer,
             num_epochs=num_epochs_anes,
             learning_rate=learning_rate,
-            device=device,
+            device=torch.device("cuda" if torch.cuda.is_available() else "cpu"),
             save_dir=save_dir,
-            focal_loss_gamma=BEST_FOCAL_LOSS_GAMMA
+            focal_loss_gamma=BEST_FOCAL_LOSS_GAMMA,
+            use_bert_classifier=use_bert_classifier,
+            bert_model_name=bert_model_name
         )
     except Exception as e:
         print(f"Error training ANES classifier: {e}")
@@ -249,7 +270,8 @@ def run_full_pipeline(
             classifier=anes_metrics.get("anes_classifier"), 
             metrics=anes_metrics, 
             save_dir=results_dir, 
-            bias_names=prospect_dataset.bias_names
+            bias_names=prospect_dataset.bias_names if prospect_dataset else None, # Pass bias_names only if prospect_dataset exists
+            use_bert_classifier=use_bert_classifier
         )
     except Exception as e:
         print(f"Warning: Visualization generation failed: {e}")
@@ -270,7 +292,7 @@ def run_full_pipeline(
                     print(f"  weighted avg: Precision={metrics['weighted_precision']:.4f}, Recall={metrics['weighted_recall']:.4f}, F1={metrics['weighted_f1']:.4f}")
 
     # Print system weights if available
-    if 'system_weights' in anes_metrics:
+    if 'system_weights' in anes_metrics and anes_metrics['system_weights'] is not None:
         print("\nAverage System Weights:")
         print(f"  System 1: {anes_metrics['system_weights'][0]:.4f}")
         print(f"  System 2: {anes_metrics['system_weights'][1]:.4f}")
@@ -307,6 +329,10 @@ def main():
                         help='Directory to save models')
     parser.add_argument('--results_dir', type=str, default="results",
                         help='Directory to save results')
+    parser.add_argument('--use_bert_classifier', action='store_true',
+                        help='Use BERT-based classifier instead of LLM-based classifier')
+    parser.add_argument('--bert_model_name', type=str, default="bert-base-uncased",
+                        help='Model name for the BERT classifier (e.g., bert-base-uncased)')
     
     args = parser.parse_args()
     
@@ -325,7 +351,9 @@ def main():
             num_epochs_anes=args.num_epochs_anes,
             seed=args.seed,
             save_dir=args.save_dir,
-            results_dir=args.results_dir
+            results_dir=args.results_dir,
+            use_bert_classifier=args.use_bert_classifier,
+            bert_model_name=args.bert_model_name
         )
         
         if "error" in results:
@@ -340,4 +368,8 @@ def main():
 
 if __name__ == "__main__":
     main()
+
+
+
+
 

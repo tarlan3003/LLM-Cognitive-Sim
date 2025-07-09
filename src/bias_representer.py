@@ -1,3 +1,4 @@
+
 """
 Cognitive Bias Representation Module for Prospect Theory Pipeline - Fixed Version with Dimension Handling
 
@@ -443,4 +444,6 @@ if __name__ == "__main__":
     print(f"Single input {single_input.shape} -> Projected {projected_single.shape}")
     
     print("Dimension handling test completed successfully!")
+
+
 

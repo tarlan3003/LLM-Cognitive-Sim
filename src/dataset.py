@@ -1,3 +1,4 @@
+
 """
 Dataset handling for Prospect Theory LLM Pipeline - Fixed Version
 
@@ -63,10 +64,10 @@ class ProspectTheoryDataset(Dataset):
 
     def _load_data(self, data_path: str) -> List[Dict]:
         """Load data from CSV or JSON file."""
-        if data_path.endswith('.csv'):
-            return pd.read_csv(data_path).to_dict(orient='records')
-        elif data_path.endswith('.json'):
-            with open(data_path, 'r') as f:
+        if data_path.endswith(".csv"):
+            return pd.read_csv(data_path).to_dict(orient="records")
+        elif data_path.endswith(".json"):
+            with open(data_path, "r") as f:
                 return json.load(f)
         else:
             raise ValueError(f"Unsupported file format: {data_path}")
@@ -77,8 +78,8 @@ class ProspectTheoryDataset(Dataset):
             return []
         
         # Assuming bias_labels is a dictionary in each data item
-        if 'bias_labels' in self.data[0] and isinstance(self.data[0]['bias_labels'], dict):
-            return list(self.data[0]['bias_labels'].keys())
+        if "bias_labels" in self.data[0] and isinstance(self.data[0]["bias_labels"], dict):
+            return list(self.data[0]["bias_labels"].keys())
         return []
     
     def _generate_text_from_anes_features(self, features: Dict) -> str:
@@ -92,7 +93,7 @@ class ProspectTheoryDataset(Dataset):
         
         # Add demographic information if available
         for key, value in features.items():
-            if isinstance(value, (str, int, float)) and key != 'target':
+            if isinstance(value, (str, int, float)) and key != "target":
                 text += f"{key}: {value}\n"
             
         # Add question
@@ -116,54 +117,54 @@ class ProspectTheoryDataset(Dataset):
         encoding = self.tokenizer(
             text, 
             truncation=True, 
-            padding='max_length', 
+            padding="max_length", 
             max_length=self.max_length, 
-            return_tensors='pt'
+            return_tensors="pt"
         )
         
         result = {
-            'input_ids': encoding['input_ids'].squeeze(),
-            'attention_mask': encoding['attention_mask'].squeeze(),
-            'text': text  # Keep raw text for reference
+            "input_ids": encoding["input_ids"].squeeze(),
+            "attention_mask": encoding["attention_mask"].squeeze(),
+            "text": text  # Keep raw text for reference
         }
         
         # Add bias labels if available
-        if 'bias_labels' in item and self.bias_names:
+        if "bias_labels" in item and self.bias_names:
             bias_labels = torch.tensor(
-                [item['bias_labels'].get(bias, 0) for bias in self.bias_names], 
+                [item["bias_labels"].get(bias, 0) for bias in self.bias_names], 
                 dtype=torch.float
             )
-            result['bias_labels'] = bias_labels
+            result["bias_labels"] = bias_labels
         
         # Add system label if available
-        if 'system_label' in item:
-            result['system_label'] = torch.tensor(item['system_label'], dtype=torch.long)
+        if "system_label" in item:
+            result["system_label"] = torch.tensor(item["system_label"], dtype=torch.long)
         
         # Add ANES features if available
-        if 'anes_features' in item:
-            if isinstance(item['anes_features'], list):
-                result['anes_features'] = torch.tensor(item['anes_features'], dtype=torch.float)
+        if "anes_features" in item:
+            if isinstance(item["anes_features"], list):
+                result["anes_features"] = torch.tensor(item["anes_features"], dtype=torch.float)
             else:
                 # Handle case where anes_features is a dictionary
                 anes_features = []
-                for key in sorted(item['anes_features'].keys()):
-                    value = item['anes_features'][key]
+                for key in sorted(item["anes_features"].keys()):
+                    value = item["anes_features"][key]
                     if isinstance(value, (int, float)):
                         anes_features.append(value)
                     elif isinstance(value, str) and value.isdigit():
                         anes_features.append(float(value))
                     elif isinstance(value, str):
                         # One-hot encode categorical features
-                        if key + '_' + value not in item.get('_feature_mapping', {}):
+                        if key + "_" + value not in item.get("_feature_mapping", {}):
                             # Skip if not in feature mapping
                             continue
-                        feature_idx = item['_feature_mapping'][key + '_' + value]
+                        feature_idx = item["_feature_mapping"][key + "_" + value]
                         anes_features.append(1.0 if feature_idx else 0.0)
-                result['anes_features'] = torch.tensor(anes_features, dtype=torch.float)
+                result["anes_features"] = torch.tensor(anes_features, dtype=torch.float)
         
         # Add target if available
-        if 'target' in item:
-            result['target'] = torch.tensor(item['target'], dtype=torch.long)
+        if "target" in item:
+            result["target"] = torch.tensor(item["target"], dtype=torch.long)
         
         return result
 
@@ -256,7 +257,7 @@ class ProspectTheoryDataset(Dataset):
         
         # Save to file
         os.makedirs(os.path.dirname(output_path), exist_ok=True)
-        with open(output_path, 'w') as f:
+        with open(output_path, "w") as f:
             json.dump(data, f, indent=2)
         
         print(f"Created Prospect Theory dataset with {len(data)} examples at {output_path}")
@@ -290,18 +291,18 @@ class ProspectTheoryDataset(Dataset):
         
         # Process all JSON files in the folder
         for filename in os.listdir(json_folder):
-            if not filename.endswith('.json'):
+            if not filename.endswith(".json"):
                 continue
                 
             filepath = os.path.join(json_folder, filename)
             
             try:
-                with open(filepath, 'r') as f:
+                with open(filepath, "r") as f:
                     respondent_data = json.load(f)
                 
                 # Extract features and target
-                text_features, structured_features = extract_legitimate_features(respondent_data.get('responses', []))
-                target_response = extract_target_response(respondent_data.get('responses', []), target_variable)
+                text_features, structured_features = extract_legitimate_features(respondent_data.get("responses", []))
+                target_response = extract_target_response(respondent_data.get("responses", []), target_variable)
                 
                 # Skip if no valid target response
                 if target_response not in include_classes:
@@ -313,10 +314,10 @@ class ProspectTheoryDataset(Dataset):
                 
                 # Create dataset entry
                 entry = {
-                    'text': text_features,
-                    'anes_features': list(structured_features.values()),
-                    'target': target_label,
-                    'respondent_id': respondent_data.get('respondent_id', filename.replace('.json', ''))
+                    "text": text_features,
+                    "anes_features": list(structured_features.values()),
+                    "target": target_label,
+                    "respondent_id": respondent_data.get("respondent_id", filename.replace(".json", ""))
                 }
                 
                 dataset.append(entry)
@@ -329,16 +330,16 @@ class ProspectTheoryDataset(Dataset):
         
         # Save dataset
         os.makedirs(os.path.dirname(output_path), exist_ok=True)
-        with open(output_path, 'w') as f:
+        with open(output_path, "w") as f:
             json.dump(dataset, f, indent=2)
         
         print(f"Converted {processed_files} files to dataset. Skipped {skipped_files} files.")
         print(f"Dataset saved to {output_path}")
 
 
-class ANESDataset(Dataset):
+class ANESBertDataset(Dataset):
     """
-    Dataset for ANES data using the same format as in the original notebook.
+    Dataset for ANES data specifically for BERT-based models.
     """
     
     def __init__(self, texts, labels, tokenizer, max_len=256):
@@ -411,7 +412,7 @@ def extract_legitimate_features(responses: List[Dict]) -> Tuple[str, Dict]:
         for r in responses:
             if r["variable_code"] == code:
                 ans = r.get("respondent_answer")
-                if ans in ['Inapplicable', 'Refused', "Don't know", 'Error']:
+                if ans in ["Inapplicable", "Refused", "Don't know", "Error"]:
                     return "NA"
                 return str(ans)
         return "NA"
@@ -470,40 +471,7 @@ def extract_legitimate_features(responses: List[Dict]) -> Tuple[str, Dict]:
         features["political_engagement"] = 0.0
     
     # Convert features to a single text representation
-    input_text = f"""Demographics:
-Age: {features['age']}
-Gender: {features['gender']}
-Education: {features['education']}
-Income: {features['income']}
-Race: {features['race']}
-
-Political Engagement:
-Political interest: {features['political_interest']}
-Campaign interest: {features['campaign_interest']}
-Voter registration: {features['voter_registration']}
-Voting frequency: {features['voting_frequency']}
-
-Economic Views:
-Economic views: {features['economic_views']}
-Economy better/worse: {features['economy_better_worse']}
-Personal finance: {features['personal_finance']}
-
-Geographic:
-State: {features['state']}
-Urban/Rural: {features['urban_rural']}
-
-Media:
-Media consumption: {features['media_consumption']}
-Social media use: {features['social_media_use']}
-News interest: {features['news_interest']}
-
-Policy Priorities:
-Immigration importance: {features['immigration_importance']}
-Healthcare importance: {features['healthcare_importance']}
-Economy importance: {features['economy_importance']}
-COVID importance: {features['covid_importance']}
-
-Question: Based on these characteristics and preferences, who would this respondent likely vote for in a presidential election?"""
+    input_text = f"""Demographics:\nAge: {features['age']}\nGender: {features['gender']}\nEducation: {features['education']}\nIncome: {features['income']}\nRace: {features['race']}\n\nPolitical Engagement:\nPolitical interest: {features['political_interest']}\nCampaign interest: {features['campaign_interest']}\nVoter registration: {features['voter_registration']}\nVoting frequency: {features['voting_frequency']}\n\nEconomic Views:\nEconomic views: {features['economic_views']}\nEconomy better/worse: {features['economy_better_worse']}\nPersonal finance: {features['personal_finance']}\n\nGeographic:\nState: {features['state']}\nUrban/Rural: {features['urban_rural']}\n\nMedia:\nMedia consumption: {features['media_consumption']}\nSocial media use: {features['social_media_use']}\nNews interest: {features['news_interest']}\n\nPolicy Priorities:\nImmigration importance: {features['immigration_importance']}\nHealthcare importance: {features['healthcare_importance']}\nEconomy importance: {features['economy_importance']}\nCOVID importance: {features['covid_importance']}\n\nQuestion: Based on these characteristics and preferences, who would this respondent likely vote for in a presidential election?"""
     
     # Create structured features for numerical processing
     structured_features = {
@@ -515,4 +483,6 @@ Question: Based on these characteristics and preferences, who would this respond
     }
     
     return input_text.strip(), structured_features
+
+
 

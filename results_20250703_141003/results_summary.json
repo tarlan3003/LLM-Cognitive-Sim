@@ -1,0 +1,12 @@
+{
+  "timestamp": "2025-07-03T14:10:09.312251",
+  "success": false,
+  "error": "CognitiveBiasRepresenter.train_system_components() missing 1 required positional argument: 'extractor'",
+  "metrics": {},
+  "model_paths": {},
+  "system_info": {
+    "cuda_available": true,
+    "device_count": 1,
+    "python_version": "3.10.17 (main, May 16 2025, 04:04:17) [GCC 13.3.0]"
+  }
+}

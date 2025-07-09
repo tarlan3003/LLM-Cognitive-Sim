@@ -1,3 +1,4 @@
+
 """
 ANES Classifier Module for Prospect Theory Pipeline - Fixed Version
 
@@ -16,6 +17,7 @@ import matplotlib.pyplot as plt
 import seaborn as sns
 from typing import Dict, List, Tuple, Optional, Union
 import os
+from transformers import AutoModel, AutoTokenizer
 
 
 class FocalLoss(nn.Module):
@@ -222,6 +224,24 @@ class ProspectTheoryANESClassifier(nn.Module):
         return model
 
 
+class BERTANESClassifier(nn.Module):
+    """
+    BERT-based classifier for ANES data.
+    """
+    def __init__(self, model_name: str, num_classes: int = 2, dropout_rate: float = 0.1):
+        super().__init__()
+        self.bert = AutoModel.from_pretrained(model_name)
+        self.dropout = nn.Dropout(dropout_rate)
+        self.classifier = nn.Linear(self.bert.config.hidden_size, num_classes)
+
+    def forward(self, input_ids, attention_mask):
+        outputs = self.bert(input_ids=input_ids, attention_mask=attention_mask)
+        pooled_output = outputs.pooler_output  # Use pooled output for classification
+        pooled_output = self.dropout(pooled_output)
+        logits = self.classifier(pooled_output)
+        return logits
+
+
 def train_anes_classifier(
     train_dataloader, 
     val_dataloader,
@@ -231,7 +251,9 @@ def train_anes_classifier(
     learning_rate: float = 3e-4,
     device: str = 'cpu',
     save_dir: str = 'models',
-    focal_loss_gamma: float = 2.0
+    focal_loss_gamma: float = 2.0,
+    use_bert_classifier: bool = False, # New parameter to switch classifier type
+    bert_model_name: str = "bert-base-uncased" # Model name for BERT classifier
 ) -> Dict:
     """
     Train the ANES classifier - FIXED: Updated function signature to match usage.
@@ -246,34 +268,40 @@ def train_anes_classifier(
         device: Device to run the model on
         save_dir: Directory to save models
         focal_loss_gamma: Gamma parameter for focal loss
+        use_bert_classifier: Whether to use the BERT-based classifier
+        bert_model_name: Model name for the BERT classifier
         
     Returns:
         Dictionary of training metrics and trained classifier
     """
     device = torch.device(device) if isinstance(device, str) else device
     
-    # Determine dimensions from first batch
-    sample_batch = next(iter(train_dataloader))
-    sample_texts = sample_batch['text']
-    sample_anes_features = sample_batch['anes_features']
-    
-    # Extract sample activations to determine dimensions
-    sample_activations = extractor.extract_activations(sample_texts)
-    sample_bias_scores = bias_representer.get_bias_scores(sample_activations)
-    sample_weighted_rep, _ = bias_representer.get_system_representations(sample_activations)
-    
-    anes_feature_dim = sample_anes_features.shape[1]
-    llm_hidden_dim = sample_weighted_rep.shape[1]
-    num_biases = len(bias_representer.bias_names)
-    
-    print(f"Initializing classifier with dims: ANES={anes_feature_dim}, LLM={llm_hidden_dim}, Biases={num_biases}")
-    
-    # Initialize classifier
-    anes_classifier = ProspectTheoryANESClassifier(
-        anes_feature_dim=anes_feature_dim,
-        llm_hidden_dim=llm_hidden_dim,
-        num_biases=num_biases
-    ).to(device)
+    if use_bert_classifier:
+        print(f"Initializing BERTANESClassifier with {bert_model_name}...")
+        anes_classifier = BERTANESClassifier(bert_model_name).to(device)
+    else:
+        # Determine dimensions from first batch for ProspectTheoryANESClassifier
+        sample_batch = next(iter(train_dataloader))
+        sample_texts = sample_batch['text']
+        sample_anes_features = sample_batch['anes_features']
+        
+        # Extract sample activations to determine dimensions
+        sample_activations = extractor.extract_activations(sample_texts)
+        sample_bias_scores = bias_representer.get_bias_scores(sample_activations)
+        sample_weighted_rep, _ = bias_representer.get_system_representations(sample_activations)
+        
+        anes_feature_dim = sample_anes_features.shape[1]
+        llm_hidden_dim = sample_weighted_rep.shape[1]
+        num_biases = len(bias_representer.bias_names)
+        
+        print(f"Initializing ProspectTheoryANESClassifier with dims: ANES={anes_feature_dim}, LLM={llm_hidden_dim}, Biases={num_biases}")
+        
+        # Initialize classifier
+        anes_classifier = ProspectTheoryANESClassifier(
+            anes_feature_dim=anes_feature_dim,
+            llm_hidden_dim=llm_hidden_dim,
+            num_biases=num_biases
+        ).to(device)
     
     # Calculate class weights for balanced training
     all_targets = []
@@ -284,7 +312,7 @@ def train_anes_classifier(
         all_targets = torch.cat(all_targets)
         class_counts = torch.bincount(all_targets)
         class_weights = 1.0 / class_counts.float()
-        class_weights = class_weights / class_weights.sum() * len(class_weights)
+        class_weights = class_weights / class_weights.sum() * len(class_counts)
         class_weights = class_weights.to(device)
         print(f"Using class weights: {class_weights}")
     else:
@@ -320,21 +348,29 @@ def train_anes_classifier(
         total = 0
         
         for batch in tqdm(train_dataloader, desc=f"Epoch {epoch+1}/{num_epochs}"):
-            texts = batch['text']
-            anes_features = batch['anes_features'].to(device)
             targets = batch['target'].to(device)
             
-            # Extract activations
-            activations = extractor.extract_activations(texts)
-            
-            # Get bias scores and system representations
-            bias_scores = bias_representer.get_bias_scores(activations).to(device)
-            weighted_system_rep, _ = bias_representer.get_system_representations(activations)
-            weighted_system_rep = weighted_system_rep.to(device)
-            
-            # Forward pass
             optimizer.zero_grad()
-            logits = anes_classifier(anes_features, bias_scores, weighted_system_rep)
+
+            if use_bert_classifier:
+                input_ids = batch['input_ids'].to(device)
+                attention_mask = batch['attention_mask'].to(device)
+                logits = anes_classifier(input_ids, attention_mask)
+            else:
+                texts = batch['text']
+                anes_features = batch['anes_features'].to(device)
+                
+                # Extract activations
+                activations = extractor.extract_activations(texts)
+                
+                # Get bias scores and system representations
+                bias_scores = bias_representer.get_bias_scores(activations).to(device)
+                weighted_system_rep, _ = bias_representer.get_system_representations(activations)
+                weighted_system_rep = weighted_system_rep.to(device)
+                
+                # Forward pass
+                logits = anes_classifier(anes_features, bias_scores, weighted_system_rep)
+            
             loss = loss_fn(logits, targets)
             
             # Backward pass
@@ -380,7 +416,7 @@ def train_anes_classifier(
     
     # Evaluate on validation set
     val_metrics = evaluate_anes_classifier(
-        anes_classifier, val_dataloader, extractor, bias_representer, device
+        anes_classifier, val_dataloader, extractor, bias_representer, device, use_bert_classifier
     )
     
     # Combine training and validation metrics
@@ -395,11 +431,12 @@ def train_anes_classifier(
 
 
 def evaluate_anes_classifier(
-    anes_classifier: ProspectTheoryANESClassifier, 
+    anes_classifier: Union[ProspectTheoryANESClassifier, BERTANESClassifier], 
     dataloader, 
     extractor, 
     bias_representer, 
     device: str = 'cpu',
+    use_bert_classifier: bool = False,
     target_names: List[str] = None,
     thresholds: List[float] = None
 ) -> Dict:
@@ -407,11 +444,12 @@ def evaluate_anes_classifier(
     Evaluate the ANES classifier.
     
     Args:
-        anes_classifier: ProspectTheoryANESClassifier instance
+        anes_classifier: ProspectTheoryANESClassifier or BERTANESClassifier instance
         dataloader: DataLoader for evaluation data
         extractor: HiddenLayerExtractor instance
         bias_representer: CognitiveBiasRepresenter instance
         device: Device to run the model on
+        use_bert_classifier: Whether the classifier is BERT-based
         target_names: Names of target classes
         thresholds: List of thresholds to evaluate
         
@@ -435,33 +473,44 @@ def evaluate_anes_classifier(
     
     with torch.no_grad():
         for batch in tqdm(dataloader, desc="Evaluating"):
-            texts = batch['text']
-            anes_features = batch['anes_features'].to(device)
             targets = batch['target'].to(device)
             
-            # Extract activations
-            activations = extractor.extract_activations(texts)
-            
-            # Get bias scores and system representations
-            bias_scores = bias_representer.get_bias_scores(activations).to(device)
-            weighted_system_rep, system_weights = bias_representer.get_system_representations(activations)
-            weighted_system_rep = weighted_system_rep.to(device)
-            
-            # Forward pass
-            logits = anes_classifier(anes_features, bias_scores, weighted_system_rep)
+            if use_bert_classifier:
+                input_ids = batch['input_ids'].to(device)
+                attention_mask = batch['attention_mask'].to(device)
+                logits = anes_classifier(input_ids, attention_mask)
+            else:
+                texts = batch['text']
+                anes_features = batch['anes_features'].to(device)
+                
+                # Extract activations
+                activations = extractor.extract_activations(texts)
+                
+                # Get bias scores and system representations
+                bias_scores = bias_representer.get_bias_scores(activations).to(device)
+                weighted_system_rep, system_weights = bias_representer.get_system_representations(activations)
+                weighted_system_rep = weighted_system_rep.to(device)
+                
+                # Collect bias scores and system weights only for non-BERT classifier
+                all_bias_scores.append(bias_scores.cpu().numpy())
+                all_system_weights.append(system_weights.cpu().numpy())
+
+                # Forward pass
+                logits = anes_classifier(anes_features, bias_scores, weighted_system_rep)
             
             # Collect results
             all_logits.append(logits.cpu())
             all_targets.append(targets.cpu())
-            all_bias_scores.append(bias_scores.cpu().numpy())
-            all_system_weights.append(system_weights.cpu().numpy())
     
     # Convert to numpy arrays
     all_logits = torch.cat(all_logits, dim=0)
     all_targets = torch.cat(all_targets, dim=0).numpy()
     all_probs = F.softmax(all_logits, dim=1).numpy()
-    all_bias_scores = np.concatenate(all_bias_scores, axis=0)
-    all_system_weights = np.concatenate(all_system_weights, axis=0)
+    
+    # Only concatenate if data was collected (i.e., not BERT classifier)
+    if not use_bert_classifier:
+        all_bias_scores = np.concatenate(all_bias_scores, axis=0)
+        all_system_weights = np.concatenate(all_system_weights, axis=0)
     
     # Find best threshold using validation data
     best_threshold = 0.5
@@ -512,26 +561,26 @@ def evaluate_anes_classifier(
             print(f"Error computing metrics for threshold {threshold}: {e}")
             results[f"threshold_{threshold}"] = {'accuracy': accuracy, 'error': str(e)}
     
-    # Calculate bias scores and system weights by class
+    # Calculate bias scores and system weights by class (only for non-BERT classifier)
     bias_by_class = {}
     system_by_class = {}
-    
-    for i, class_name in enumerate(target_names):
-        mask = all_targets == i
-        if mask.sum() > 0:
-            bias_by_class[class_name] = all_bias_scores[mask].mean(axis=0)
-            system_by_class[class_name] = all_system_weights[mask].mean(axis=0)
+    if not use_bert_classifier:
+        for i, class_name in enumerate(target_names):
+            mask = all_targets == i
+            if mask.sum() > 0:
+                bias_by_class[class_name] = all_bias_scores[mask].mean(axis=0)
+                system_by_class[class_name] = all_system_weights[mask].mean(axis=0)
     
     # Return all metrics
     return {
         'thresholded_results': results,
-        'avg_bias_scores': all_bias_scores.mean(axis=0),
-        'avg_system_weights': all_system_weights.mean(axis=0),
-        'bias_by_class': bias_by_class,
-        'system_by_class': system_by_class,
+        'avg_bias_scores': all_bias_scores.mean(axis=0) if not use_bert_classifier else None,
+        'avg_system_weights': all_system_weights.mean(axis=0) if not use_bert_classifier else None,
+        'bias_by_class': bias_by_class if not use_bert_classifier else None,
+        'system_by_class': system_by_class if not use_bert_classifier else None,
         'best_threshold': best_threshold,
         'best_accuracy': best_accuracy,
-        'system_weights': all_system_weights.mean(axis=0)  # For compatibility with main script
+        'system_weights': all_system_weights.mean(axis=0) if not use_bert_classifier else None  # For compatibility with main script
     }
 
 
@@ -541,6 +590,9 @@ if __name__ == "__main__":
     print("Key components:")
     print("- FocalLoss: Advanced loss function for imbalanced classification")
     print("- ProspectTheoryANESClassifier: Main classifier combining multiple feature types")
+    print("- BERTANESClassifier: BERT-based classifier for direct text classification")
     print("- train_anes_classifier: Training function with proper error handling")
     print("- evaluate_anes_classifier: Comprehensive evaluation with multiple metrics")
+
+
 

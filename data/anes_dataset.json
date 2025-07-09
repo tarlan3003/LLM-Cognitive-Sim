@@ -1,0 +1,1702 @@
+[
+  {
+    "text": "Sample respondent 0 with various political views and demographics.",
+    "anes_features": [
+      0.0,
+      1.0,
+      2.0,
+      3.0,
+      4.0,
+      5.0,
+      6.0,
+      7.0,
+      8.0,
+      9.0
+    ],
+    "target": 0,
+    "respondent_id": "sample_0"
+  },
+  {
+    "text": "Sample respondent 1 with various political views and demographics.",
+    "anes_features": [
+      0.0,
+      1.0,
+      2.0,
+      3.0,
+      4.0,
+      5.0,
+      6.0,
+      7.0,
+      8.0,
+      9.0
+    ],
+    "target": 1,
+    "respondent_id": "sample_1"
+  },
+  {
+    "text": "Sample respondent 2 with various political views and demographics.",
+    "anes_features": [
+      0.0,
+      1.0,
+      2.0,
+      3.0,
+      4.0,
+      5.0,
+      6.0,
+      7.0,
+      8.0,
+      9.0
+    ],
+    "target": 0,
+    "respondent_id": "sample_2"
+  },
+  {
+    "text": "Sample respondent 3 with various political views and demographics.",
+    "anes_features": [
+      0.0,
+      1.0,
+      2.0,
+      3.0,
+      4.0,
+      5.0,
+      6.0,
+      7.0,
+      8.0,
+      9.0
+    ],
+    "target": 1,
+    "respondent_id": "sample_3"
+  },
+  {
+    "text": "Sample respondent 4 with various political views and demographics.",
+    "anes_features": [
+      0.0,
+      1.0,
+      2.0,
+      3.0,
+      4.0,
+      5.0,
+      6.0,
+      7.0,
+      8.0,
+      9.0
+    ],
+    "target": 0,
+    "respondent_id": "sample_4"
+  },
+  {
+    "text": "Sample respondent 5 with various political views and demographics.",
+    "anes_features": [
+      0.0,
+      1.0,
+      2.0,
+      3.0,
+      4.0,
+      5.0,
+      6.0,
+      7.0,
+      8.0,
+      9.0
+    ],
+    "target": 1,
+    "respondent_id": "sample_5"
+  },
+  {
+    "text": "Sample respondent 6 with various political views and demographics.",
+    "anes_features": [
+      0.0,
+      1.0,
+      2.0,
+      3.0,
+      4.0,
+      5.0,
+      6.0,
+      7.0,
+      8.0,
+      9.0
+    ],
+    "target": 0,
+    "respondent_id": "sample_6"
+  },
+  {
+    "text": "Sample respondent 7 with various political views and demographics.",
+    "anes_features": [
+      0.0,
+      1.0,
+      2.0,
+      3.0,
+      4.0,
+      5.0,
+      6.0,
+      7.0,
+      8.0,
+      9.0
+    ],
+    "target": 1,
+    "respondent_id": "sample_7"
+  },
+  {
+    "text": "Sample respondent 8 with various political views and demographics.",
+    "anes_features": [
+      0.0,
+      1.0,
+      2.0,
+      3.0,
+      4.0,
+      5.0,
+      6.0,
+      7.0,
+      8.0,
+      9.0
+    ],
+    "target": 0,
+    "respondent_id": "sample_8"
+  },
+  {
+    "text": "Sample respondent 9 with various political views and demographics.",
+    "anes_features": [
+      0.0,
+      1.0,
+      2.0,
+      3.0,
+      4.0,
+      5.0,
+      6.0,
+      7.0,
+      8.0,
+      9.0
+    ],
+    "target": 1,
+    "respondent_id": "sample_9"
+  },
+  {
+    "text": "Sample respondent 10 with various political views and demographics.",
+    "anes_features": [
+      0.0,
+      1.0,
+      2.0,
+      3.0,
+      4.0,
+      5.0,
+      6.0,
+      7.0,
+      8.0,
+      9.0
+    ],
+    "target": 0,
+    "respondent_id": "sample_10"
+  },
+  {
+    "text": "Sample respondent 11 with various political views and demographics.",
+    "anes_features": [
+      0.0,
+      1.0,
+      2.0,
+      3.0,
+      4.0,
+      5.0,
+      6.0,
+      7.0,
+      8.0,
+      9.0
+    ],
+    "target": 1,
+    "respondent_id": "sample_11"
+  },
+  {
+    "text": "Sample respondent 12 with various political views and demographics.",
+    "anes_features": [
+      0.0,
+      1.0,
+      2.0,
+      3.0,
+      4.0,
+      5.0,
+      6.0,
+      7.0,
+      8.0,
+      9.0
+    ],
+    "target": 0,
+    "respondent_id": "sample_12"
+  },
+  {
+    "text": "Sample respondent 13 with various political views and demographics.",
+    "anes_features": [
+      0.0,
+      1.0,
+      2.0,
+      3.0,
+      4.0,
+      5.0,
+      6.0,
+      7.0,
+      8.0,
+      9.0
+    ],
+    "target": 1,
+    "respondent_id": "sample_13"
+  },
+  {
+    "text": "Sample respondent 14 with various political views and demographics.",
+    "anes_features": [
+      0.0,
+      1.0,
+      2.0,
+      3.0,
+      4.0,
+      5.0,
+      6.0,
+      7.0,
+      8.0,
+      9.0
+    ],
+    "target": 0,
+    "respondent_id": "sample_14"
+  },
+  {
+    "text": "Sample respondent 15 with various political views and demographics.",
+    "anes_features": [
+      0.0,
+      1.0,
+      2.0,
+      3.0,
+      4.0,
+      5.0,
+      6.0,
+      7.0,
+      8.0,
+      9.0
+    ],
+    "target": 1,
+    "respondent_id": "sample_15"
+  },
+  {
+    "text": "Sample respondent 16 with various political views and demographics.",
+    "anes_features": [
+      0.0,
+      1.0,
+      2.0,
+      3.0,
+      4.0,
+      5.0,
+      6.0,
+      7.0,
+      8.0,
+      9.0
+    ],
+    "target": 0,
+    "respondent_id": "sample_16"
+  },
+  {
+    "text": "Sample respondent 17 with various political views and demographics.",
+    "anes_features": [
+      0.0,
+      1.0,
+      2.0,
+      3.0,
+      4.0,
+      5.0,
+      6.0,
+      7.0,
+      8.0,
+      9.0
+    ],
+    "target": 1,
+    "respondent_id": "sample_17"
+  },
+  {
+    "text": "Sample respondent 18 with various political views and demographics.",
+    "anes_features": [
+      0.0,
+      1.0,
+      2.0,
+      3.0,
+      4.0,
+      5.0,
+      6.0,
+      7.0,
+      8.0,
+      9.0
+    ],
+    "target": 0,
+    "respondent_id": "sample_18"
+  },
+  {
+    "text": "Sample respondent 19 with various political views and demographics.",
+    "anes_features": [
+      0.0,
+      1.0,
+      2.0,
+      3.0,
+      4.0,
+      5.0,
+      6.0,
+      7.0,
+      8.0,
+      9.0
+    ],
+    "target": 1,
+    "respondent_id": "sample_19"
+  },
+  {
+    "text": "Sample respondent 20 with various political views and demographics.",
+    "anes_features": [
+      0.0,
+      1.0,
+      2.0,
+      3.0,
+      4.0,
+      5.0,
+      6.0,
+      7.0,
+      8.0,
+      9.0
+    ],
+    "target": 0,
+    "respondent_id": "sample_20"
+  },
+  {
+    "text": "Sample respondent 21 with various political views and demographics.",
+    "anes_features": [
+      0.0,
+      1.0,
+      2.0,
+      3.0,
+      4.0,
+      5.0,
+      6.0,
+      7.0,
+      8.0,
+      9.0
+    ],
+    "target": 1,
+    "respondent_id": "sample_21"
+  },
+  {
+    "text": "Sample respondent 22 with various political views and demographics.",
+    "anes_features": [
+      0.0,
+      1.0,
+      2.0,
+      3.0,
+      4.0,
+      5.0,
+      6.0,
+      7.0,
+      8.0,
+      9.0
+    ],
+    "target": 0,
+    "respondent_id": "sample_22"
+  },
+  {
+    "text": "Sample respondent 23 with various political views and demographics.",
+    "anes_features": [
+      0.0,
+      1.0,
+      2.0,
+      3.0,
+      4.0,
+      5.0,
+      6.0,
+      7.0,
+      8.0,
+      9.0
+    ],
+    "target": 1,
+    "respondent_id": "sample_23"
+  },
+  {
+    "text": "Sample respondent 24 with various political views and demographics.",
+    "anes_features": [
+      0.0,
+      1.0,
+      2.0,
+      3.0,
+      4.0,
+      5.0,
+      6.0,
+      7.0,
+      8.0,
+      9.0
+    ],
+    "target": 0,
+    "respondent_id": "sample_24"
+  },
+  {
+    "text": "Sample respondent 25 with various political views and demographics.",
+    "anes_features": [
+      0.0,
+      1.0,
+      2.0,
+      3.0,
+      4.0,
+      5.0,
+      6.0,
+      7.0,
+      8.0,
+      9.0
+    ],
+    "target": 1,
+    "respondent_id": "sample_25"
+  },
+  {
+    "text": "Sample respondent 26 with various political views and demographics.",
+    "anes_features": [
+      0.0,
+      1.0,
+      2.0,
+      3.0,
+      4.0,
+      5.0,
+      6.0,
+      7.0,
+      8.0,
+      9.0
+    ],
+    "target": 0,
+    "respondent_id": "sample_26"
+  },
+  {
+    "text": "Sample respondent 27 with various political views and demographics.",
+    "anes_features": [
+      0.0,
+      1.0,
+      2.0,
+      3.0,
+      4.0,
+      5.0,
+      6.0,
+      7.0,
+      8.0,
+      9.0
+    ],
+    "target": 1,
+    "respondent_id": "sample_27"
+  },
+  {
+    "text": "Sample respondent 28 with various political views and demographics.",
+    "anes_features": [
+      0.0,
+      1.0,
+      2.0,
+      3.0,
+      4.0,
+      5.0,
+      6.0,
+      7.0,
+      8.0,
+      9.0
+    ],
+    "target": 0,
+    "respondent_id": "sample_28"
+  },
+  {
+    "text": "Sample respondent 29 with various political views and demographics.",
+    "anes_features": [
+      0.0,
+      1.0,
+      2.0,
+      3.0,
+      4.0,
+      5.0,
+      6.0,
+      7.0,
+      8.0,
+      9.0
+    ],
+    "target": 1,
+    "respondent_id": "sample_29"
+  },
+  {
+    "text": "Sample respondent 30 with various political views and demographics.",
+    "anes_features": [
+      0.0,
+      1.0,
+      2.0,
+      3.0,
+      4.0,
+      5.0,
+      6.0,
+      7.0,
+      8.0,
+      9.0
+    ],
+    "target": 0,
+    "respondent_id": "sample_30"
+  },
+  {
+    "text": "Sample respondent 31 with various political views and demographics.",
+    "anes_features": [
+      0.0,
+      1.0,
+      2.0,
+      3.0,
+      4.0,
+      5.0,
+      6.0,
+      7.0,
+      8.0,
+      9.0
+    ],
+    "target": 1,
+    "respondent_id": "sample_31"
+  },
+  {
+    "text": "Sample respondent 32 with various political views and demographics.",
+    "anes_features": [
+      0.0,
+      1.0,
+      2.0,
+      3.0,
+      4.0,
+      5.0,
+      6.0,
+      7.0,
+      8.0,
+      9.0
+    ],
+    "target": 0,
+    "respondent_id": "sample_32"
+  },
+  {
+    "text": "Sample respondent 33 with various political views and demographics.",
+    "anes_features": [
+      0.0,
+      1.0,
+      2.0,
+      3.0,
+      4.0,
+      5.0,
+      6.0,
+      7.0,
+      8.0,
+      9.0
+    ],
+    "target": 1,
+    "respondent_id": "sample_33"
+  },
+  {
+    "text": "Sample respondent 34 with various political views and demographics.",
+    "anes_features": [
+      0.0,
+      1.0,
+      2.0,
+      3.0,
+      4.0,
+      5.0,
+      6.0,
+      7.0,
+      8.0,
+      9.0
+    ],
+    "target": 0,
+    "respondent_id": "sample_34"
+  },
+  {
+    "text": "Sample respondent 35 with various political views and demographics.",
+    "anes_features": [
+      0.0,
+      1.0,
+      2.0,
+      3.0,
+      4.0,
+      5.0,
+      6.0,
+      7.0,
+      8.0,
+      9.0
+    ],
+    "target": 1,
+    "respondent_id": "sample_35"
+  },
+  {
+    "text": "Sample respondent 36 with various political views and demographics.",
+    "anes_features": [
+      0.0,
+      1.0,
+      2.0,
+      3.0,
+      4.0,
+      5.0,
+      6.0,
+      7.0,
+      8.0,
+      9.0
+    ],
+    "target": 0,
+    "respondent_id": "sample_36"
+  },
+  {
+    "text": "Sample respondent 37 with various political views and demographics.",
+    "anes_features": [
+      0.0,
+      1.0,
+      2.0,
+      3.0,
+      4.0,
+      5.0,
+      6.0,
+      7.0,
+      8.0,
+      9.0
+    ],
+    "target": 1,
+    "respondent_id": "sample_37"
+  },
+  {
+    "text": "Sample respondent 38 with various political views and demographics.",
+    "anes_features": [
+      0.0,
+      1.0,
+      2.0,
+      3.0,
+      4.0,
+      5.0,
+      6.0,
+      7.0,
+      8.0,
+      9.0
+    ],
+    "target": 0,
+    "respondent_id": "sample_38"
+  },
+  {
+    "text": "Sample respondent 39 with various political views and demographics.",
+    "anes_features": [
+      0.0,
+      1.0,
+      2.0,
+      3.0,
+      4.0,
+      5.0,
+      6.0,
+      7.0,
+      8.0,
+      9.0
+    ],
+    "target": 1,
+    "respondent_id": "sample_39"
+  },
+  {
+    "text": "Sample respondent 40 with various political views and demographics.",
+    "anes_features": [
+      0.0,
+      1.0,
+      2.0,
+      3.0,
+      4.0,
+      5.0,
+      6.0,
+      7.0,
+      8.0,
+      9.0
+    ],
+    "target": 0,
+    "respondent_id": "sample_40"
+  },
+  {
+    "text": "Sample respondent 41 with various political views and demographics.",
+    "anes_features": [
+      0.0,
+      1.0,
+      2.0,
+      3.0,
+      4.0,
+      5.0,
+      6.0,
+      7.0,
+      8.0,
+      9.0
+    ],
+    "target": 1,
+    "respondent_id": "sample_41"
+  },
+  {
+    "text": "Sample respondent 42 with various political views and demographics.",
+    "anes_features": [
+      0.0,
+      1.0,
+      2.0,
+      3.0,
+      4.0,
+      5.0,
+      6.0,
+      7.0,
+      8.0,
+      9.0
+    ],
+    "target": 0,
+    "respondent_id": "sample_42"
+  },
+  {
+    "text": "Sample respondent 43 with various political views and demographics.",
+    "anes_features": [
+      0.0,
+      1.0,
+      2.0,
+      3.0,
+      4.0,
+      5.0,
+      6.0,
+      7.0,
+      8.0,
+      9.0
+    ],
+    "target": 1,
+    "respondent_id": "sample_43"
+  },
+  {
+    "text": "Sample respondent 44 with various political views and demographics.",
+    "anes_features": [
+      0.0,
+      1.0,
+      2.0,
+      3.0,
+      4.0,
+      5.0,
+      6.0,
+      7.0,
+      8.0,
+      9.0
+    ],
+    "target": 0,
+    "respondent_id": "sample_44"
+  },
+  {
+    "text": "Sample respondent 45 with various political views and demographics.",
+    "anes_features": [
+      0.0,
+      1.0,
+      2.0,
+      3.0,
+      4.0,
+      5.0,
+      6.0,
+      7.0,
+      8.0,
+      9.0
+    ],
+    "target": 1,
+    "respondent_id": "sample_45"
+  },
+  {
+    "text": "Sample respondent 46 with various political views and demographics.",
+    "anes_features": [
+      0.0,
+      1.0,
+      2.0,
+      3.0,
+      4.0,
+      5.0,
+      6.0,
+      7.0,
+      8.0,
+      9.0
+    ],
+    "target": 0,
+    "respondent_id": "sample_46"
+  },
+  {
+    "text": "Sample respondent 47 with various political views and demographics.",
+    "anes_features": [
+      0.0,
+      1.0,
+      2.0,
+      3.0,
+      4.0,
+      5.0,
+      6.0,
+      7.0,
+      8.0,
+      9.0
+    ],
+    "target": 1,
+    "respondent_id": "sample_47"
+  },
+  {
+    "text": "Sample respondent 48 with various political views and demographics.",
+    "anes_features": [
+      0.0,
+      1.0,
+      2.0,
+      3.0,
+      4.0,
+      5.0,
+      6.0,
+      7.0,
+      8.0,
+      9.0
+    ],
+    "target": 0,
+    "respondent_id": "sample_48"
+  },
+  {
+    "text": "Sample respondent 49 with various political views and demographics.",
+    "anes_features": [
+      0.0,
+      1.0,
+      2.0,
+      3.0,
+      4.0,
+      5.0,
+      6.0,
+      7.0,
+      8.0,
+      9.0
+    ],
+    "target": 1,
+    "respondent_id": "sample_49"
+  },
+  {
+    "text": "Sample respondent 50 with various political views and demographics.",
+    "anes_features": [
+      0.0,
+      1.0,
+      2.0,
+      3.0,
+      4.0,
+      5.0,
+      6.0,
+      7.0,
+      8.0,
+      9.0
+    ],
+    "target": 0,
+    "respondent_id": "sample_50"
+  },
+  {
+    "text": "Sample respondent 51 with various political views and demographics.",
+    "anes_features": [
+      0.0,
+      1.0,
+      2.0,
+      3.0,
+      4.0,
+      5.0,
+      6.0,
+      7.0,
+      8.0,
+      9.0
+    ],
+    "target": 1,
+    "respondent_id": "sample_51"
+  },
+  {
+    "text": "Sample respondent 52 with various political views and demographics.",
+    "anes_features": [
+      0.0,
+      1.0,
+      2.0,
+      3.0,
+      4.0,
+      5.0,
+      6.0,
+      7.0,
+      8.0,
+      9.0
+    ],
+    "target": 0,
+    "respondent_id": "sample_52"
+  },
+  {
+    "text": "Sample respondent 53 with various political views and demographics.",
+    "anes_features": [
+      0.0,
+      1.0,
+      2.0,
+      3.0,
+      4.0,
+      5.0,
+      6.0,
+      7.0,
+      8.0,
+      9.0
+    ],
+    "target": 1,
+    "respondent_id": "sample_53"
+  },
+  {
+    "text": "Sample respondent 54 with various political views and demographics.",
+    "anes_features": [
+      0.0,
+      1.0,
+      2.0,
+      3.0,
+      4.0,
+      5.0,
+      6.0,
+      7.0,
+      8.0,
+      9.0
+    ],
+    "target": 0,
+    "respondent_id": "sample_54"
+  },
+  {
+    "text": "Sample respondent 55 with various political views and demographics.",
+    "anes_features": [
+      0.0,
+      1.0,
+      2.0,
+      3.0,
+      4.0,
+      5.0,
+      6.0,
+      7.0,
+      8.0,
+      9.0
+    ],
+    "target": 1,
+    "respondent_id": "sample_55"
+  },
+  {
+    "text": "Sample respondent 56 with various political views and demographics.",
+    "anes_features": [
+      0.0,
+      1.0,
+      2.0,
+      3.0,
+      4.0,
+      5.0,
+      6.0,
+      7.0,
+      8.0,
+      9.0
+    ],
+    "target": 0,
+    "respondent_id": "sample_56"
+  },
+  {
+    "text": "Sample respondent 57 with various political views and demographics.",
+    "anes_features": [
+      0.0,
+      1.0,
+      2.0,
+      3.0,
+      4.0,
+      5.0,
+      6.0,
+      7.0,
+      8.0,
+      9.0
+    ],
+    "target": 1,
+    "respondent_id": "sample_57"
+  },
+  {
+    "text": "Sample respondent 58 with various political views and demographics.",
+    "anes_features": [
+      0.0,
+      1.0,
+      2.0,
+      3.0,
+      4.0,
+      5.0,
+      6.0,
+      7.0,
+      8.0,
+      9.0
+    ],
+    "target": 0,
+    "respondent_id": "sample_58"
+  },
+  {
+    "text": "Sample respondent 59 with various political views and demographics.",
+    "anes_features": [
+      0.0,
+      1.0,
+      2.0,
+      3.0,
+      4.0,
+      5.0,
+      6.0,
+      7.0,
+      8.0,
+      9.0
+    ],
+    "target": 1,
+    "respondent_id": "sample_59"
+  },
+  {
+    "text": "Sample respondent 60 with various political views and demographics.",
+    "anes_features": [
+      0.0,
+      1.0,
+      2.0,
+      3.0,
+      4.0,
+      5.0,
+      6.0,
+      7.0,
+      8.0,
+      9.0
+    ],
+    "target": 0,
+    "respondent_id": "sample_60"
+  },
+  {
+    "text": "Sample respondent 61 with various political views and demographics.",
+    "anes_features": [
+      0.0,
+      1.0,
+      2.0,
+      3.0,
+      4.0,
+      5.0,
+      6.0,
+      7.0,
+      8.0,
+      9.0
+    ],
+    "target": 1,
+    "respondent_id": "sample_61"
+  },
+  {
+    "text": "Sample respondent 62 with various political views and demographics.",
+    "anes_features": [
+      0.0,
+      1.0,
+      2.0,
+      3.0,
+      4.0,
+      5.0,
+      6.0,
+      7.0,
+      8.0,
+      9.0
+    ],
+    "target": 0,
+    "respondent_id": "sample_62"
+  },
+  {
+    "text": "Sample respondent 63 with various political views and demographics.",
+    "anes_features": [
+      0.0,
+      1.0,
+      2.0,
+      3.0,
+      4.0,
+      5.0,
+      6.0,
+      7.0,
+      8.0,
+      9.0
+    ],
+    "target": 1,
+    "respondent_id": "sample_63"
+  },
+  {
+    "text": "Sample respondent 64 with various political views and demographics.",
+    "anes_features": [
+      0.0,
+      1.0,
+      2.0,
+      3.0,
+      4.0,
+      5.0,
+      6.0,
+      7.0,
+      8.0,
+      9.0
+    ],
+    "target": 0,
+    "respondent_id": "sample_64"
+  },
+  {
+    "text": "Sample respondent 65 with various political views and demographics.",
+    "anes_features": [
+      0.0,
+      1.0,
+      2.0,
+      3.0,
+      4.0,
+      5.0,
+      6.0,
+      7.0,
+      8.0,
+      9.0
+    ],
+    "target": 1,
+    "respondent_id": "sample_65"
+  },
+  {
+    "text": "Sample respondent 66 with various political views and demographics.",
+    "anes_features": [
+      0.0,
+      1.0,
+      2.0,
+      3.0,
+      4.0,
+      5.0,
+      6.0,
+      7.0,
+      8.0,
+      9.0
+    ],
+    "target": 0,
+    "respondent_id": "sample_66"
+  },
+  {
+    "text": "Sample respondent 67 with various political views and demographics.",
+    "anes_features": [
+      0.0,
+      1.0,
+      2.0,
+      3.0,
+      4.0,
+      5.0,
+      6.0,
+      7.0,
+      8.0,
+      9.0
+    ],
+    "target": 1,
+    "respondent_id": "sample_67"
+  },
+  {
+    "text": "Sample respondent 68 with various political views and demographics.",
+    "anes_features": [
+      0.0,
+      1.0,
+      2.0,
+      3.0,
+      4.0,
+      5.0,
+      6.0,
+      7.0,
+      8.0,
+      9.0
+    ],
+    "target": 0,
+    "respondent_id": "sample_68"
+  },
+  {
+    "text": "Sample respondent 69 with various political views and demographics.",
+    "anes_features": [
+      0.0,
+      1.0,
+      2.0,
+      3.0,
+      4.0,
+      5.0,
+      6.0,
+      7.0,
+      8.0,
+      9.0
+    ],
+    "target": 1,
+    "respondent_id": "sample_69"
+  },
+  {
+    "text": "Sample respondent 70 with various political views and demographics.",
+    "anes_features": [
+      0.0,
+      1.0,
+      2.0,
+      3.0,
+      4.0,
+      5.0,
+      6.0,
+      7.0,
+      8.0,
+      9.0
+    ],
+    "target": 0,
+    "respondent_id": "sample_70"
+  },
+  {
+    "text": "Sample respondent 71 with various political views and demographics.",
+    "anes_features": [
+      0.0,
+      1.0,
+      2.0,
+      3.0,
+      4.0,
+      5.0,
+      6.0,
+      7.0,
+      8.0,
+      9.0
+    ],
+    "target": 1,
+    "respondent_id": "sample_71"
+  },
+  {
+    "text": "Sample respondent 72 with various political views and demographics.",
+    "anes_features": [
+      0.0,
+      1.0,
+      2.0,
+      3.0,
+      4.0,
+      5.0,
+      6.0,
+      7.0,
+      8.0,
+      9.0
+    ],
+    "target": 0,
+    "respondent_id": "sample_72"
+  },
+  {
+    "text": "Sample respondent 73 with various political views and demographics.",
+    "anes_features": [
+      0.0,
+      1.0,
+      2.0,
+      3.0,
+      4.0,
+      5.0,
+      6.0,
+      7.0,
+      8.0,
+      9.0
+    ],
+    "target": 1,
+    "respondent_id": "sample_73"
+  },
+  {
+    "text": "Sample respondent 74 with various political views and demographics.",
+    "anes_features": [
+      0.0,
+      1.0,
+      2.0,
+      3.0,
+      4.0,
+      5.0,
+      6.0,
+      7.0,
+      8.0,
+      9.0
+    ],
+    "target": 0,
+    "respondent_id": "sample_74"
+  },
+  {
+    "text": "Sample respondent 75 with various political views and demographics.",
+    "anes_features": [
+      0.0,
+      1.0,
+      2.0,
+      3.0,
+      4.0,
+      5.0,
+      6.0,
+      7.0,
+      8.0,
+      9.0
+    ],
+    "target": 1,
+    "respondent_id": "sample_75"
+  },
+  {
+    "text": "Sample respondent 76 with various political views and demographics.",
+    "anes_features": [
+      0.0,
+      1.0,
+      2.0,
+      3.0,
+      4.0,
+      5.0,
+      6.0,
+      7.0,
+      8.0,
+      9.0
+    ],
+    "target": 0,
+    "respondent_id": "sample_76"
+  },
+  {
+    "text": "Sample respondent 77 with various political views and demographics.",
+    "anes_features": [
+      0.0,
+      1.0,
+      2.0,
+      3.0,
+      4.0,
+      5.0,
+      6.0,
+      7.0,
+      8.0,
+      9.0
+    ],
+    "target": 1,
+    "respondent_id": "sample_77"
+  },
+  {
+    "text": "Sample respondent 78 with various political views and demographics.",
+    "anes_features": [
+      0.0,
+      1.0,
+      2.0,
+      3.0,
+      4.0,
+      5.0,
+      6.0,
+      7.0,
+      8.0,
+      9.0
+    ],
+    "target": 0,
+    "respondent_id": "sample_78"
+  },
+  {
+    "text": "Sample respondent 79 with various political views and demographics.",
+    "anes_features": [
+      0.0,
+      1.0,
+      2.0,
+      3.0,
+      4.0,
+      5.0,
+      6.0,
+      7.0,
+      8.0,
+      9.0
+    ],
+    "target": 1,
+    "respondent_id": "sample_79"
+  },
+  {
+    "text": "Sample respondent 80 with various political views and demographics.",
+    "anes_features": [
+      0.0,
+      1.0,
+      2.0,
+      3.0,
+      4.0,
+      5.0,
+      6.0,
+      7.0,
+      8.0,
+      9.0
+    ],
+    "target": 0,
+    "respondent_id": "sample_80"
+  },
+  {
+    "text": "Sample respondent 81 with various political views and demographics.",
+    "anes_features": [
+      0.0,
+      1.0,
+      2.0,
+      3.0,
+      4.0,
+      5.0,
+      6.0,
+      7.0,
+      8.0,
+      9.0
+    ],
+    "target": 1,
+    "respondent_id": "sample_81"
+  },
+  {
+    "text": "Sample respondent 82 with various political views and demographics.",
+    "anes_features": [
+      0.0,
+      1.0,
+      2.0,
+      3.0,
+      4.0,
+      5.0,
+      6.0,
+      7.0,
+      8.0,
+      9.0
+    ],
+    "target": 0,
+    "respondent_id": "sample_82"
+  },
+  {
+    "text": "Sample respondent 83 with various political views and demographics.",
+    "anes_features": [
+      0.0,
+      1.0,
+      2.0,
+      3.0,
+      4.0,
+      5.0,
+      6.0,
+      7.0,
+      8.0,
+      9.0
+    ],
+    "target": 1,
+    "respondent_id": "sample_83"
+  },
+  {
+    "text": "Sample respondent 84 with various political views and demographics.",
+    "anes_features": [
+      0.0,
+      1.0,
+      2.0,
+      3.0,
+      4.0,
+      5.0,
+      6.0,
+      7.0,
+      8.0,
+      9.0
+    ],
+    "target": 0,
+    "respondent_id": "sample_84"
+  },
+  {
+    "text": "Sample respondent 85 with various political views and demographics.",
+    "anes_features": [
+      0.0,
+      1.0,
+      2.0,
+      3.0,
+      4.0,
+      5.0,
+      6.0,
+      7.0,
+      8.0,
+      9.0
+    ],
+    "target": 1,
+    "respondent_id": "sample_85"
+  },
+  {
+    "text": "Sample respondent 86 with various political views and demographics.",
+    "anes_features": [
+      0.0,
+      1.0,
+      2.0,
+      3.0,
+      4.0,
+      5.0,
+      6.0,
+      7.0,
+      8.0,
+      9.0
+    ],
+    "target": 0,
+    "respondent_id": "sample_86"
+  },
+  {
+    "text": "Sample respondent 87 with various political views and demographics.",
+    "anes_features": [
+      0.0,
+      1.0,
+      2.0,
+      3.0,
+      4.0,
+      5.0,
+      6.0,
+      7.0,
+      8.0,
+      9.0
+    ],
+    "target": 1,
+    "respondent_id": "sample_87"
+  },
+  {
+    "text": "Sample respondent 88 with various political views and demographics.",
+    "anes_features": [
+      0.0,
+      1.0,
+      2.0,
+      3.0,
+      4.0,
+      5.0,
+      6.0,
+      7.0,
+      8.0,
+      9.0
+    ],
+    "target": 0,
+    "respondent_id": "sample_88"
+  },
+  {
+    "text": "Sample respondent 89 with various political views and demographics.",
+    "anes_features": [
+      0.0,
+      1.0,
+      2.0,
+      3.0,
+      4.0,
+      5.0,
+      6.0,
+      7.0,
+      8.0,
+      9.0
+    ],
+    "target": 1,
+    "respondent_id": "sample_89"
+  },
+  {
+    "text": "Sample respondent 90 with various political views and demographics.",
+    "anes_features": [
+      0.0,
+      1.0,
+      2.0,
+      3.0,
+      4.0,
+      5.0,
+      6.0,
+      7.0,
+      8.0,
+      9.0
+    ],
+    "target": 0,
+    "respondent_id": "sample_90"
+  },
+  {
+    "text": "Sample respondent 91 with various political views and demographics.",
+    "anes_features": [
+      0.0,
+      1.0,
+      2.0,
+      3.0,
+      4.0,
+      5.0,
+      6.0,
+      7.0,
+      8.0,
+      9.0
+    ],
+    "target": 1,
+    "respondent_id": "sample_91"
+  },
+  {
+    "text": "Sample respondent 92 with various political views and demographics.",
+    "anes_features": [
+      0.0,
+      1.0,
+      2.0,
+      3.0,
+      4.0,
+      5.0,
+      6.0,
+      7.0,
+      8.0,
+      9.0
+    ],
+    "target": 0,
+    "respondent_id": "sample_92"
+  },
+  {
+    "text": "Sample respondent 93 with various political views and demographics.",
+    "anes_features": [
+      0.0,
+      1.0,
+      2.0,
+      3.0,
+      4.0,
+      5.0,
+      6.0,
+      7.0,
+      8.0,
+      9.0
+    ],
+    "target": 1,
+    "respondent_id": "sample_93"
+  },
+  {
+    "text": "Sample respondent 94 with various political views and demographics.",
+    "anes_features": [
+      0.0,
+      1.0,
+      2.0,
+      3.0,
+      4.0,
+      5.0,
+      6.0,
+      7.0,
+      8.0,
+      9.0
+    ],
+    "target": 0,
+    "respondent_id": "sample_94"
+  },
+  {
+    "text": "Sample respondent 95 with various political views and demographics.",
+    "anes_features": [
+      0.0,
+      1.0,
+      2.0,
+      3.0,
+      4.0,
+      5.0,
+      6.0,
+      7.0,
+      8.0,
+      9.0
+    ],
+    "target": 1,
+    "respondent_id": "sample_95"
+  },
+  {
+    "text": "Sample respondent 96 with various political views and demographics.",
+    "anes_features": [
+      0.0,
+      1.0,
+      2.0,
+      3.0,
+      4.0,
+      5.0,
+      6.0,
+      7.0,
+      8.0,
+      9.0
+    ],
+    "target": 0,
+    "respondent_id": "sample_96"
+  },
+  {
+    "text": "Sample respondent 97 with various political views and demographics.",
+    "anes_features": [
+      0.0,
+      1.0,
+      2.0,
+      3.0,
+      4.0,
+      5.0,
+      6.0,
+      7.0,
+      8.0,
+      9.0
+    ],
+    "target": 1,
+    "respondent_id": "sample_97"
+  },
+  {
+    "text": "Sample respondent 98 with various political views and demographics.",
+    "anes_features": [
+      0.0,
+      1.0,
+      2.0,
+      3.0,
+      4.0,
+      5.0,
+      6.0,
+      7.0,
+      8.0,
+      9.0
+    ],
+    "target": 0,
+    "respondent_id": "sample_98"
+  },
+  {
+    "text": "Sample respondent 99 with various political views and demographics.",
+    "anes_features": [
+      0.0,
+      1.0,
+      2.0,
+      3.0,
+      4.0,
+      5.0,
+      6.0,
+      7.0,
+      8.0,
+      9.0
+    ],
+    "target": 1,
+    "respondent_id": "sample_99"
+  }
+]
