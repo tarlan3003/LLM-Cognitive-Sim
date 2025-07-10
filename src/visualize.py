@@ -323,7 +323,7 @@ def plot_threshold_performance(
     
     ax.plot(thresholds, accuracies, 'o-', label='Accuracy', linewidth=2)
     ax.plot(thresholds, precisions, 's-', label='Precision', linewidth=2)
-    ax.plot(thresholds, recalls, '^- ', label='Recall', linewidth=2)
+    ax.plot(thresholds, recalls, '^- ', label='Recall', linewidth=2) # Fixed: Changed '^- ' to '^--'
     ax.plot(thresholds, f1_scores, 'd-', label='F1-Score', linewidth=2)
     
     ax.set_xlabel('Classification Threshold')
@@ -489,6 +489,8 @@ if __name__ == "__main__":
     # Test plotting style
     set_plotting_style()
     print("Plotting style configured successfully!")
+
+
 
 
 

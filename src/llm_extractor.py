@@ -1,3 +1,4 @@
+
 """
 LLM Hidden Layer Extraction Module for Prospect Theory Pipeline - Fixed Version
 
@@ -174,7 +175,9 @@ class HiddenLayerExtractor:
         return fn
 
     def _register_hooks(self):
-        """Register hooks for all target layers."""
+        """
+        Register hooks for all target layers.
+        """
         self._remove_hooks()
         for layer_idx in self.target_layers_indices:
             try:
@@ -186,7 +189,9 @@ class HiddenLayerExtractor:
                 continue
 
     def _remove_hooks(self):
-        """Remove all registered hooks."""
+        """
+        Remove all registered hooks.
+        """
         for hook in self.hooks:
             hook.remove()
         self.hooks = []
@@ -307,4 +312,6 @@ if __name__ == "__main__":
         print(f"Test failed: {e}")
         import traceback
         traceback.print_exc()
+
+
 
