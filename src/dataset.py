@@ -13,6 +13,7 @@ import torch
 import numpy as np
 import pandas as pd
 import random
+import re # Import regex module
 from torch.utils.data import Dataset, DataLoader
 from transformers import AutoTokenizer
 from typing import Dict, List, Optional, Union, Tuple
@@ -35,7 +36,8 @@ class ProspectTheoryDataset(Dataset):
         max_length: int = 512,
         is_anes: bool = False,
         text_key: str = "text",
-        generate_text_from_anes: bool = False
+        generate_text_from_anes: bool = False,
+        anes_text_data: Optional[Dict[str, List[Dict[str, str]]]] = None # Updated type hint
     ):
         """
         Initialize the dataset.
@@ -47,6 +49,8 @@ class ProspectTheoryDataset(Dataset):
             is_anes: Whether this is ANES data (vs. Prospect Theory training data)
             text_key: Key for text field in the data
             generate_text_from_anes: Whether to generate text from ANES features
+            anes_text_data: Dictionary mapping respondent_id to a list of dictionaries,
+                            each containing 'question' and 'answer' for open-ended responses.
         """
         self.data = self._load_data(data_path)
         self.tokenizer = tokenizer
@@ -54,6 +58,7 @@ class ProspectTheoryDataset(Dataset):
         self.is_anes = is_anes
         self.text_key = text_key
         self.generate_text_from_anes = generate_text_from_anes
+        self.anes_text_data = anes_text_data
         
         # Extract bias names if available
         self.bias_names = self._get_bias_names()
@@ -73,7 +78,9 @@ class ProspectTheoryDataset(Dataset):
             raise ValueError(f"Unsupported file format: {data_path}")
 
     def _get_bias_names(self) -> List[str]:
-        """Extract all bias names from the dataset."""
+        """
+        Extract all bias names from the dataset.
+        """
         if not self.data:
             return []
         
@@ -112,6 +119,22 @@ class ProspectTheoryDataset(Dataset):
             text = self._generate_text_from_anes_features(item)
         else:
             text = item.get(self.text_key, "")
+        
+        # Add ANES textual data (question + answer) if available and applicable
+        if self.is_anes and self.anes_text_data and "respondent_id" in item:
+            respondent_id = str(item["respondent_id"])
+            if respondent_id in self.anes_text_data:
+                open_ended_texts = []
+                for qa_pair in self.anes_text_data[respondent_id]:
+                    question = qa_pair.get("question", "")
+                    answer = qa_pair.get("answer", "")
+                    if question and answer:
+                        open_ended_texts.append(f"Question: {question} Answer: {answer}")
+                    elif answer:
+                        open_ended_texts.append(f"Answer: {answer}")
+                
+                if open_ended_texts:
+                    text = "\n\n".join(open_ended_texts) + "\n\n" + text
         
         # Tokenize text
         encoding = self.tokenizer(
@@ -201,9 +224,9 @@ class ProspectTheoryDataset(Dataset):
                 "Before asking about inflation expectations, the interviewer mentioned that inflation was 2% last year."
             ],
             "framing": [
-                "The policy was described as 'saving 200 lives' rather than 'letting 800 people die'.",
-                "The tax cut was framed as 'giving money back to taxpayers' rather than 'reducing government revenue'.",
-                "The candidate's position was described as 'supporting traditional values' rather than 'opposing progressive reforms'."
+                "The policy was described as \"saving 200 lives\" rather than \"letting 800 people die\".",
+                "The tax cut was framed as \"giving money back to taxpayers\" rather than \"reducing government revenue\".",
+                "The candidate\"s position was described as \"supporting traditional values\" rather than \"opposing progressive reforms\"."
             ],
             "availability": [
                 "The respondent had recently seen news coverage of a violent crime in their neighborhood.",
@@ -238,7 +261,7 @@ class ProspectTheoryDataset(Dataset):
             text = " ".join(text_parts)
             
             # Add context and question
-            text += "\n\nQ: How would this framing affect the respondent's decision?"
+            text += "\n\nQ: How would this framing affect the respondent\"s decision?"
             
             # Create bias labels
             bias_labels = {bias: 1 if bias in present_biases else 0 for bias in bias_names}
@@ -269,7 +292,8 @@ class ProspectTheoryDataset(Dataset):
         json_folder: str,
         output_path: str,
         target_variable: str = "V241049",  # WHO WOULD R VOTE FOR: HARRIS VS TRUMP
-        include_classes: List[str] = None
+        include_classes: List[str] = None,
+        anes_text_excel_path: Optional[str] = None # New parameter for ANES textual data Excel
     ) -> None:
         """
         Convert ANES JSON files to dataset format.
@@ -279,12 +303,51 @@ class ProspectTheoryDataset(Dataset):
             output_path: Path to save the converted dataset
             target_variable: Variable code for the target classification
             include_classes: List of classes to include (others will be filtered out)
+            anes_text_excel_path: Path to the Excel file containing ANES textual open-ended responses.
         """
         if include_classes is None:
             include_classes = ["Donald Trump", "Kamala Harris"]
         
         print(f"Converting ANES JSON files from {json_folder}...")
         
+        # Load ANES textual data from Excel if provided
+        anes_text_data = {} # type: Dict[str, List[Dict[str, str]]]
+        if anes_text_excel_path:
+            print(f"Loading ANES textual data from {anes_text_excel_path}...")
+            xls = pd.ExcelFile(anes_text_excel_path)
+            for sheet_name in xls.sheet_names:
+                df = pd.read_excel(xls, sheet_name=sheet_name)
+                
+                # Extract question text from column header
+                # Assuming format like 'VXXXXXX - POST: Question Text [text]'
+                question_col_name = None
+                for col in df.columns:
+                    if "POST:" in col and "[text]" in col:
+                        question_col_name = col
+                        break
+                
+                if question_col_name:
+                    # Extract the question text part, removing variable code and '[text]'
+                    match = re.search(r'V\d+ - (?:POST: )?(.*?) \[text\]', question_col_name)
+                    if match:
+                        question_text = match.group(1).strip()
+                    else:
+                        question_text = question_col_name.split(' - ')[-1].replace(' [text]', '').strip()
+                else:
+                    question_text = ""
+
+                # Assuming the first column is respondent ID and the identified column is text response
+                if df.shape[1] >= 2 and question_col_name:
+                    for index, row in df.iterrows():
+                        respondent_id = str(row.iloc[0]) # Convert ID to string
+                        text_response = str(row[question_col_name]) if pd.notna(row[question_col_name]) else ""
+                        
+                        if respondent_id not in anes_text_data:
+                            anes_text_data[respondent_id] = []
+                        anes_text_data[respondent_id].append({"question": question_text, "answer": text_response})
+            
+            print(f"Loaded textual data for {len(anes_text_data)} respondents.")
+
         dataset = []
         processed_files = 0
         skipped_files = 0
@@ -312,14 +375,23 @@ class ProspectTheoryDataset(Dataset):
                 # Create target label
                 target_label = include_classes.index(target_response)
                 
+                # Get respondent ID for merging textual data
+                respondent_id = str(respondent_data.get("respondent_id", filename.replace(".json", "")))
+
                 # Create dataset entry
                 entry = {
-                    "text": text_features,
+                    "text": text_features, # This is text from structured features
                     "anes_features": list(structured_features.values()),
                     "target": target_label,
-                    "respondent_id": respondent_data.get("respondent_id", filename.replace(".json", ""))
+                    "respondent_id": respondent_id
                 }
                 
+                # Add external textual data (question + answer) if available
+                if anes_text_data and respondent_id in anes_text_data:
+                    entry["external_text_qa_pairs"] = anes_text_data[respondent_id]
+                else:
+                    entry["external_text_qa_pairs"] = [] # Ensure key exists even if empty
+
                 dataset.append(entry)
                 processed_files += 1
                 
@@ -342,7 +414,7 @@ class ANESBertDataset(Dataset):
     Dataset for ANES data specifically for BERT-based models.
     """
     
-    def __init__(self, texts, labels, tokenizer, max_len=256):
+    def __init__(self, texts, labels, tokenizer, max_len=256, structured_features=None):
         """
         Initialize the dataset.
         
@@ -351,11 +423,13 @@ class ANESBertDataset(Dataset):
             labels: List of labels
             tokenizer: Tokenizer for the LLM
             max_len: Maximum sequence length for tokenization
+            structured_features: Optional list of structured feature arrays for each example.
         """
         self.texts = list(texts)
         self.labels = list(labels)
         self.tokenizer = tokenizer
         self.max_len = max_len
+        self.structured_features = structured_features
 
     def __len__(self):
         return len(self.labels)
@@ -369,11 +443,16 @@ class ANESBertDataset(Dataset):
             return_tensors="pt",
         )
 
-        return {
+        item = {
             "input_ids": enc["input_ids"].squeeze(0).long(),
             "attention_mask": enc["attention_mask"].squeeze(0).float(),
             "labels": torch.tensor(self.labels[idx], dtype=torch.long),
         }
+        
+        if self.structured_features is not None:
+            item["structured_features"] = torch.tensor(self.structured_features[idx], dtype=torch.float)
+
+        return item
 
 
 def extract_target_response(responses: List[Dict], target_variable: str) -> str:
@@ -410,9 +489,9 @@ def extract_legitimate_features(responses: List[Dict]) -> Tuple[str, Dict]:
     # Helper to extract response safely
     def extract_response(responses, code):
         for r in responses:
-            if r["variable_code"] == code:
-                ans = r.get("respondent_answer")
-                if ans in ["Inapplicable", "Refused", "Don't know", "Error"]:
+            ans = r.get("respondent_answer")
+            if r.get("variable_code") == code:
+                if ans in ["Inapplicable", "Refused", "Don\"t know", "Error"]:
                     return "NA"
                 return str(ans)
         return "NA"
@@ -471,18 +550,22 @@ def extract_legitimate_features(responses: List[Dict]) -> Tuple[str, Dict]:
         features["political_engagement"] = 0.0
     
     # Convert features to a single text representation
-    input_text = f"""Demographics:\nAge: {features['age']}\nGender: {features['gender']}\nEducation: {features['education']}\nIncome: {features['income']}\nRace: {features['race']}\n\nPolitical Engagement:\nPolitical interest: {features['political_interest']}\nCampaign interest: {features['campaign_interest']}\nVoter registration: {features['voter_registration']}\nVoting frequency: {features['voting_frequency']}\n\nEconomic Views:\nEconomic views: {features['economic_views']}\nEconomy better/worse: {features['economy_better_worse']}\nPersonal finance: {features['personal_finance']}\n\nGeographic:\nState: {features['state']}\nUrban/Rural: {features['urban_rural']}\n\nMedia:\nMedia consumption: {features['media_consumption']}\nSocial media use: {features['social_media_use']}\nNews interest: {features['news_interest']}\n\nPolicy Priorities:\nImmigration importance: {features['immigration_importance']}\nHealthcare importance: {features['healthcare_importance']}\nEconomy importance: {features['economy_importance']}\nCOVID importance: {features['covid_importance']}\n\nQuestion: Based on these characteristics and preferences, who would this respondent likely vote for in a presidential election?"""
+    input_text = f"""Demographics:\nAge: {features["age"]}\nGender: {features["gender"]}\nEducation: {features["education"]}\nIncome: {features["income"]}\nRace: {features["race"]}\n\nPolitical Engagement:\nPolitical interest: {features["political_interest"]}\nCampaign interest: {features["campaign_interest"]}\nVoter registration: {features["voter_registration"]}\nVoting frequency: {features["voting_frequency"]}\n\nEconomic Views:\nEconomic views: {features["economic_views"]}\nEconomy better/worse: {features["economy_better_worse"]}\nPersonal finance: {features["personal_finance"]}\n\nGeographic:\nState: {features["state"]}\nUrban/Rural: {features["urban_rural"]}\n\nMedia:\nMedia consumption: {features["media_consumption"]}\nSocial media use: {features["social_media_use"]}\nNews interest: {features["news_interest"]}\n\nPolicy Priorities:\nImmigration importance: {features["immigration_importance"]}\nHealthcare importance: {features["healthcare_importance"]}\nEconomy importance: {features["economy_importance"]}\nCOVID importance: {features["covid_importance"]}\n\nQuestion: Based on these characteristics and preferences, who would this respondent likely vote for in a presidential election?"""
     
     # Create structured features for numerical processing
     structured_features = {
-        'political_interest_num': features['political_interest_num'],
-        'campaign_interest_num': features['campaign_interest_num'],
-        'political_engagement': features['political_engagement'],
-        'age_numeric': 0.0,  # Would need proper age parsing
-        'income_numeric': 0.0  # Would need proper income parsing
+        "political_interest_num": features["political_interest_num"],
+        "campaign_interest_num": features["campaign_interest_num"],
+        "political_engagement": features["political_engagement"],
+        "age_numeric": 0.0,  # Would need proper age parsing
+        "income_numeric": 0.0  # Would need proper income parsing
     }
     
     return input_text.strip(), structured_features
+
+
+
+
 
 
 

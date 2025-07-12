@@ -24,6 +24,8 @@ from transformers import AutoTokenizer, AutoModel
 from tqdm import tqdm
 from imblearn.over_sampling import SMOTE
 from collections import Counter
+from typing import Optional
+
 
 # Import custom modules - FIXED: Removed src. prefix
 from src.dataset import ProspectTheoryDataset, ANESBertDataset
@@ -31,7 +33,7 @@ from src.llm_extractor import HiddenLayerExtractor
 from src.bias_representer import CognitiveBiasRepresenter
 from src.anes_classifier import ProspectTheoryANESClassifier, FocalLoss, train_anes_classifier, evaluate_anes_classifier
 from src.utils import set_seed, create_directory_structure
-from src.visualize import generate_visualizations
+from src.visualize import generate_visualizations, plot_confusion_matrix # Import plot_confusion_matrix
 
 # FIXED: Updated model selection to avoid tokenizer issues
 # Using RoBERTa-large which has reliable tokenizer support
@@ -106,7 +108,9 @@ def run_full_pipeline(
     use_bert_classifier: bool = False, # New parameter
     bert_model_name: str = "bert-base-uncased", # New parameter
     use_oversampling: bool = False, # New parameter for oversampling
-    n_splits_kfold: int = 5 # New parameter for k-fold cross-validation
+    n_splits_kfold: int = 5, # New parameter for k-fold cross-validation
+    anes_text_excel_path: Optional[str] = "/home/tsultanov/LLM-Cognitive-Sim/data/anes_timeseries_2024_redactedopenends_excel_20250430.xlsx", # New parameter for ANES textual data Excel
+    feature_mode: str = "combined" # New parameter: structured_only, text_only, combined
 ):
     """
     Run the full Prospect Theory LLM pipeline with best performing parameters.
@@ -127,6 +131,8 @@ def run_full_pipeline(
         bert_model_name: Model name for the BERT classifier
         use_oversampling: Whether to apply SMOTE oversampling to the ANES training data
         n_splits_kfold: Number of splits for k-fold cross-validation
+        anes_text_excel_path: Path to the Excel file containing ANES textual open-ended responses.
+        feature_mode: Specifies which features to use for ANES classification: 'structured_only', 'text_only', or 'combined'.
     
     Returns:
         Dictionary of evaluation metrics
@@ -218,7 +224,7 @@ def run_full_pipeline(
         # Process ANES JSON files
         print(f"Converting ANES JSON files from {anes_path}...")
         try:
-            ProspectTheoryDataset.convert_anes_to_dataset(anes_path, anes_dataset_path)
+            ProspectTheoryDataset.convert_anes_to_dataset(anes_path, anes_dataset_path, anes_text_excel_path=anes_text_excel_path)
         except Exception as e:
             print(f"Error converting ANES dataset: {e}")
             print("Please ensure ANES JSON files are available at the specified path")
@@ -227,15 +233,83 @@ def run_full_pipeline(
     # Load ANES dataset
     print("Loading ANES dataset...")
     try:
-        # Load data for BERT classifier
+        with open(anes_dataset_path, 'r') as f:
+            anes_data_raw = json.load(f)
+
+        # Filter data based on feature_mode
+        anes_data = []
+        for item in anes_data_raw:
+            text_content = ""
+            structured_features_list = []
+
+            if feature_mode == "structured_only":
+                # Use only structured features, text will be empty or default from structured
+                text_content = item.get("text", "") # This is text generated from structured features
+                structured_features_list = item.get("anes_features", [])
+            elif feature_mode == "text_only":
+                # Use only external text, structured features will be empty
+                # Now, external_text_qa_pairs contains list of {'question': 'Q', 'answer': 'A'}
+                qa_pairs = item.get("external_text_qa_pairs", [])
+                if qa_pairs:
+                    text_content = "\n\n".join([f"Question: {qa['question']} Answer: {qa['answer']}" for qa in qa_pairs])
+                structured_features_list = [] # No structured features
+            elif feature_mode == "combined":
+                # Combine both structured-derived text and external text
+                structured_text = item.get("text", "")
+                qa_pairs = item.get("external_text_qa_pairs", [])
+                external_text_combined = ""
+                if qa_pairs:
+                    external_text_combined = "\n\n".join([f"Question: {qa['question']} Answer: {qa['answer']}" for qa in qa_pairs])
+
+                if external_text_combined and structured_text:
+                    text_content = f"{structured_text}\n\n{external_text_combined}"
+                elif external_text_combined:
+                    text_content = external_text_combined
+                else:
+                    text_content = structured_text
+                structured_features_list = item.get("anes_features", [])
+            else:
+                raise ValueError(f"Invalid feature_mode: {feature_mode}")
+            
+            # Create a new item with filtered features
+            new_item = {
+                "text": text_content,
+                "target": item["target"],
+                "respondent_id": item["respondent_id"]
+            }
+            if structured_features_list:
+                new_item["anes_features"] = structured_features_list
+            anes_data.append(new_item)
+
+        texts = [item['text'] for item in anes_data]
+        labels = [item['target'] for item in anes_data]
+        structured_features_for_dataset = [item.get('anes_features', []) for item in anes_data] if feature_mode != "text_only" else None
+
         if use_bert_classifier:
-            with open(anes_dataset_path, 'r') as f:
-                anes_data = json.load(f)
-            texts = [item['text'] for item in anes_data]
-            labels = [item['target'] for item in anes_data]
-            anes_dataset = ANESBertDataset(texts, labels, tokenizer)
+            anes_dataset = ANESBertDataset(texts, labels, tokenizer, structured_features=structured_features_for_dataset)
         else:
-            anes_dataset = ProspectTheoryDataset(anes_dataset_path, tokenizer, is_anes=True, generate_text_from_anes=True)
+            # For ProspectTheoryDataset, we need to pass the combined text and potentially structured features
+            # The ProspectTheoryDataset expects 'text' and 'anes_features' in its internal data structure
+            # We'll create a dummy data list for it based on the filtered anes_data
+            pt_anes_data = []
+            for i, item in enumerate(anes_data):
+                pt_entry = {
+                    "text": item["text"],
+                    "target": item["target"],
+                    "respondent_id": item["respondent_id"]
+                }
+                if structured_features_for_dataset and structured_features_for_dataset[i]:
+                    pt_entry["anes_features"] = structured_features_for_dataset[i]
+                pt_anes_data.append(pt_entry)
+            
+            # Create a dummy data_path for ProspectTheoryDataset as it expects a file path
+            # This is a workaround, ideally ProspectTheoryDataset should be refactored to accept data directly
+            temp_anes_data_path = "data/anes/temp_anes_data_for_pt_dataset.json"
+            os.makedirs(os.path.dirname(temp_anes_data_path), exist_ok=True)
+            with open(temp_anes_data_path, "w") as f:
+                json.dump(pt_anes_data, f, indent=2)
+            anes_dataset = ProspectTheoryDataset(temp_anes_data_path, tokenizer, is_anes=True, generate_text_from_anes=False)
+
     except Exception as e:
         print(f"Error loading ANES dataset: {e}")
         return {"error": "ANES dataset loading failed"}
@@ -248,94 +322,94 @@ def run_full_pipeline(
     
     # Prepare data for k-fold (extract features and labels)
     if use_bert_classifier:
-        X = anes_dataset.texts
-        y = anes_dataset.labels
+        X_kfold = anes_dataset.texts
+        y_kfold = anes_dataset.labels
+        structured_features_kfold = anes_dataset.structured_features
     else:
         # For ProspectTheoryDataset, we need to iterate to get features and labels
         # This might be memory intensive for very large datasets
-        X = []
-        y = []
+        X_kfold = []
+        y_kfold = []
+        structured_features_kfold = []
         for i in range(len(anes_dataset)):
             item = anes_dataset[i]
-            X.append({
-                'input_ids': item['input_ids'],
-                'attention_mask': item['attention_mask'],
-                'anes_features': item.get('anes_features'),
-                'text': item.get('text')
-            })
-            y.append(item['target'].item())
-    
-    for fold, (train_index, val_index) in enumerate(kf.split(X, y)):
+            X_kfold.append(item['text'])
+            y_kfold.append(item['target'].item())
+            if "anes_features" in item:
+                structured_features_kfold.append(item["anes_features"].cpu().numpy())
+            else:
+                structured_features_kfold.append([]) # Append empty list if no structured features
+
+    for fold, (train_index, val_index) in enumerate(kf.split(X_kfold, y_kfold)):
         print(f"\n--- Fold {fold+1}/{n_splits_kfold} ---")
         
+        fold_train_texts = [X_kfold[i] for i in train_index]
+        fold_train_labels = [y_kfold[i] for i in train_index]
+        fold_val_texts = [X_kfold[i] for i in val_index]
+        fold_val_labels = [y_kfold[i] for i in val_index]
+        
+        fold_train_structured_features = [structured_features_kfold[i] for i in train_index] if structured_features_kfold else None
+        fold_val_structured_features = [structured_features_kfold[i] for i in val_index] if structured_features_kfold else None
+
         if use_bert_classifier:
-            fold_train_texts = [X[i] for i in train_index]
-            fold_train_labels = [y[i] for i in train_index]
-            fold_val_texts = [X[i] for i in val_index]
-            fold_val_labels = [y[i] for i in val_index]
-            
-            anes_train_dataset_fold = ANESBertDataset(fold_train_texts, fold_train_labels, tokenizer)
-            anes_val_dataset_fold = ANESBertDataset(fold_val_texts, fold_val_labels, tokenizer)
+            anes_train_dataset_fold = ANESBertDataset(fold_train_texts, fold_train_labels, tokenizer, structured_features=fold_train_structured_features)
+            anes_val_dataset_fold = ANESBertDataset(fold_val_texts, fold_val_labels, tokenizer, structured_features=fold_val_structured_features)
             
             # Apply SMOTE oversampling for BERT classifier if enabled
             if use_oversampling:
                 print(f"Applying SMOTE oversampling for BERT classifier in Fold {fold+1}...")
-                # SMOTE needs 2D data, so we'll use a dummy feature for texts and actual labels
-                # Then re-create the dataset with oversampled indices
+                # SMOTE needs 2D data. If structured features are available, use them.
+                # Otherwise, use a dummy feature for texts.
                 sm = SMOTE(random_state=seed)
-                # Convert labels to numpy array for SMOTE
                 y_train_np = np.array(fold_train_labels)
-                # Create dummy X for SMOTE (e.g., indices)
-                X_dummy = np.arange(len(fold_train_texts)).reshape(-1, 1)
-                X_res, y_res = sm.fit_resample(X_dummy, y_train_np)
+
+                if fold_train_structured_features and len(fold_train_structured_features[0]) > 0:
+                    # Use structured features for SMOTE if available
+                    X_smote = np.array(fold_train_structured_features)
+                else:
+                    # Fallback to dummy features if only text or no structured features
+                    X_smote = np.arange(len(fold_train_texts)).reshape(-1, 1)
                 
-                # Map back to original texts and labels based on resampled indices
-                resampled_texts = [fold_train_texts[i[0]] for i in X_res]
-                resampled_labels = y_res.tolist()
+                X_res, y_res = sm.fit_resample(X_smote, y_train_np)
                 
-                anes_train_dataset_fold = ANESBertDataset(resampled_texts, resampled_labels, tokenizer)
+                # Reconstruct the dataset with oversampled data
+                # This is a simplified approach. For text, true oversampling would involve
+                # generating synthetic text, which is beyond the scope of SMOTE.
+                # Here, SMOTE primarily balances the labels for the training process.
+                
+                # If structured features were used for SMOTE, map them back
+                if fold_train_structured_features and len(fold_train_structured_features[0]) > 0:
+                    resampled_structured_features = X_res.tolist()
+                    # We can't easily generate synthetic text, so we'll just repeat original texts
+                    # This is a limitation when using SMOTE on text-only data.
+                    # For now, we'll just use the original texts and let the model handle imbalance.
+                    # A more advanced approach would be to use text-specific oversampling techniques.
+                    resampled_texts = []
+                    original_indices = sm.k_neighbors(X_smote)[1][:, 0] # Get original indices for mapping
+                    for i in range(len(X_res)):
+                        # Find the closest original sample for the synthetic sample
+                        original_idx = original_indices[i] if i < len(original_indices) else random.choice(range(len(fold_train_texts))) # Fallback for truly synthetic samples
+                        resampled_texts.append(fold_train_texts[original_idx])
+
+                else:
+                    # If dummy features were used, we just repeat original texts based on resampled indices
+                    resampled_texts = [fold_train_texts[i[0]] for i in X_res]
+                    resampled_structured_features = None # No structured features if text_only
+                
+                anes_train_dataset_fold = ANESBertDataset(resampled_texts, y_res.tolist(), tokenizer, structured_features=resampled_structured_features)
                 print(f"Original train samples: {len(fold_train_texts)}, Resampled train samples: {len(resampled_texts)}")
 
         else:
             # For ProspectTheoryDataset, create Subset objects
+            # SMOTE for ProspectTheoryDataset is handled by FocalLoss weighting
             anes_train_dataset_fold = Subset(anes_dataset, train_index)
             anes_val_dataset_fold = Subset(anes_dataset, val_index)
             
-            # Apply SMOTE oversampling for ProspectTheoryANESClassifier if enabled
+            # SMOTE for ProspectTheoryANESClassifier is primarily handled by FocalLoss weighting
+            # Actual data augmentation for ProspectTheoryDataset with SMOTE is complex and not directly implemented here.
+            # The `use_oversampling` flag will primarily trigger class weighting in FocalLoss for this model.
             if use_oversampling:
-                print(f"Applying SMOTE oversampling for ProspectTheoryANESClassifier in Fold {fold+1}...")
-                # SMOTE needs features and labels. We need to extract them from the Subset.
-                # This can be complex due to varying feature dimensions if not all features are numerical.
-                # For simplicity, let's assume 'anes_features' are numerical and extract them.
-                # A more robust solution would involve a custom SMOTE implementation or pre-processing.
-                
-                # Extract numerical features and labels for SMOTE
-                X_train_smote = []
-                y_train_smote = []
-                for i in train_index:
-                    item = anes_dataset[i]
-                    if 'anes_features' in item and item['anes_features'] is not None:
-                        X_train_smote.append(item['anes_features'].cpu().numpy())
-                        y_train_smote.append(item['target'].item())
-                
-                if len(X_train_smote) > 0:
-                    X_train_smote = np.array(X_train_smote)
-                    y_train_smote = np.array(y_train_smote)
-                    
-                    sm = SMOTE(random_state=seed)
-                    X_res, y_res = sm.fit_resample(X_train_smote, y_train_smote)
-                    
-                    # Reconstruct the dataset for the current fold with oversampled data
-                    # This is a simplified approach. A full implementation might require
-                    # creating new `ProspectTheoryDataset` instances with synthetic data.
-                    # For now, we'll just use the original indices for the DataLoader.
-                    # The effect of SMOTE here will be primarily on the class weights in FocalLoss.
-                    print(f"SMOTE applied. Original train samples: {len(train_index)}, Resampled train samples: {len(X_res)}")
-                    # Note: Actual data augmentation for ProspectTheoryDataset with SMOTE is complex.
-                    # This SMOTE application primarily influences class weighting in FocalLoss.
-                    # For true oversampling, synthetic data generation for text and complex features is needed.
-                else:
-                    print("Skipping SMOTE: No ANES features found for oversampling.")
+                print(f"SMOTE oversampling for ProspectTheoryANESClassifier in Fold {fold+1} will influence FocalLoss class weighting.")
 
         # Create dataloaders for the current fold
         anes_train_dataloader = DataLoader(anes_train_dataset_fold, batch_size=batch_size, shuffle=True)
@@ -354,7 +428,8 @@ def run_full_pipeline(
             save_dir=os.path.join(save_dir, f"fold_{fold+1}"), # Save model per fold
             focal_loss_gamma=BEST_FOCAL_LOSS_GAMMA,
             use_bert_classifier=use_bert_classifier,
-            bert_model_name=bert_model_name
+            bert_model_name=bert_model_name,
+            use_structured_features=(feature_mode != "text_only") # Pass this to classifier
         )
         all_fold_metrics.append(fold_anes_metrics)
         
@@ -392,26 +467,26 @@ def run_full_pipeline(
     for fold_metrics in all_fold_metrics:
         # Assuming we care about the best threshold found in each fold for aggregation
         best_threshold_key = f"threshold_{fold_metrics['best_threshold']:.2f}"
-        if best_threshold_key in fold_metrics['thresholded_results']:
-            metrics_at_best_threshold = fold_metrics['thresholded_results'][best_threshold_key]
-            all_accuracies.append(metrics_at_best_threshold['accuracy'])
-            all_macro_precisions.append(metrics_at_best_threshold['macro_precision'])
-            all_macro_recalls.append(metrics_at_best_threshold['macro_recall'])
-            all_macro_f1s.append(metrics_at_best_threshold['macro_f1'])
-            all_weighted_precisions.append(metrics_at_best_threshold['weighted_precision'])
-            all_weighted_recalls.append(metrics_at_best_threshold['weighted_recall'])
-            all_weighted_f1s.append(metrics_at_best_threshold['weighted_f1'])
-            all_confusion_matrices.append(metrics_at_best_threshold['confusion_matrix'])
+        if best_threshold_key in fold_metrics["thresholded_results"]:
+            metrics_at_best_threshold = fold_metrics["thresholded_results"][best_threshold_key]
+            all_accuracies.append(metrics_at_best_threshold["accuracy"])
+            all_macro_precisions.append(metrics_at_best_threshold["macro_precision"])
+            all_macro_recalls.append(metrics_at_best_threshold["macro_recall"])
+            all_macro_f1s.append(metrics_at_best_threshold["macro_f1"])
+            all_weighted_precisions.append(metrics_at_best_threshold["weighted_precision"])
+            all_weighted_recalls.append(metrics_at_best_threshold["weighted_recall"])
+            all_weighted_f1s.append(metrics_at_best_threshold["weighted_f1"])
+            all_confusion_matrices.append(metrics_at_best_threshold["confusion_matrix"])
             
     # Calculate averages
-    aggregated_metrics['average_accuracy'] = np.mean(all_accuracies)
-    aggregated_metrics['average_macro_precision'] = np.mean(all_macro_precisions)
-    aggregated_metrics['average_macro_recall'] = np.mean(all_macro_recalls)
-    aggregated_metrics['average_macro_f1'] = np.mean(all_macro_f1s)
-    aggregated_metrics['average_weighted_precision'] = np.mean(all_weighted_precisions)
-    aggregated_metrics['average_weighted_recall'] = np.mean(all_weighted_recalls)
-    aggregated_metrics['average_weighted_f1'] = np.mean(all_weighted_f1s)
-    aggregated_metrics['average_confusion_matrix'] = np.mean(all_confusion_matrices, axis=0)
+    aggregated_metrics["average_accuracy"] = np.mean(all_accuracies)
+    aggregated_metrics["average_macro_precision"] = np.mean(all_macro_precisions)
+    aggregated_metrics["average_macro_recall"] = np.mean(all_macro_recalls)
+    aggregated_metrics["average_macro_f1"] = np.mean(all_macro_f1s)
+    aggregated_metrics["average_weighted_precision"] = np.mean(all_weighted_precisions)
+    aggregated_metrics["average_weighted_recall"] = np.mean(all_weighted_recalls)
+    aggregated_metrics["average_weighted_f1"] = np.mean(all_weighted_f1s)
+    aggregated_metrics["average_confusion_matrix"] = np.mean(all_confusion_matrices, axis=0)
     
     print("\nFinal Aggregated Evaluation Results (K-Fold Cross-Validation):")
     print(f"Average Accuracy: {aggregated_metrics['average_accuracy']:.4f}")
@@ -422,6 +497,7 @@ def run_full_pipeline(
     print(f"Average Weighted Recall: {aggregated_metrics['average_weighted_recall']:.4f}")
     print(f"Average Weighted F1-Score: {aggregated_metrics['average_weighted_f1']:.4f}")
     print("Average Confusion Matrix:\n", aggregated_metrics['average_confusion_matrix'])
+
     
     # Save aggregated results
     with open(os.path.join(results_dir, "aggregated_kfold_results.json"), "w") as f:
@@ -434,13 +510,13 @@ def run_full_pipeline(
     # Generate overall visualizations from aggregated data (e.g., average confusion matrix)
     try:
         plot_confusion_matrix(
-            aggregated_metrics['average_confusion_matrix'], 
-            target_names=['Trump', 'Harris'], 
+            aggregated_metrics["average_confusion_matrix"], 
+            target_names=["Trump", "Harris"], 
             save_path=os.path.join(results_dir, "average_confusion_matrix.png"),
             title="Average Confusion Matrix (K-Fold)"
         )
     except Exception as e:
-        print(f"Error generating average confusion matrix plot: {e}")
+            print(f"Error generating average confusion matrix plot: {e}")
 
     print(f"\nPipeline complete! Results saved to {save_dir} and {results_dir}")
     print(f"Model used: {actual_model_name}")
@@ -477,14 +553,16 @@ def main():
     parser.add_argument('--use_bert_classifier', action='store_true',
                         help='Use BERT-based classifier instead of LLM-based classifier')
     parser.add_argument('--bert_model_name', type=str, default="bert-base-uncased",
-                        help='Model name for the BERT classifier (e.g., bert-base-uncased)'
-    )
+                        help='Model name for the BERT classifier')
     parser.add_argument('--use_oversampling', action='store_true',
-                        help='Apply SMOTE oversampling to the ANES training data'
-    )
+                        help='Apply SMOTE oversampling to the ANES training data')
     parser.add_argument('--n_splits_kfold', type=int, default=5,
-                        help='Number of splits for k-fold cross-validation'
-    )
+                        help='Number of splits for k-fold cross-validation')
+    parser.add_argument('--anes_text_excel_path', type=str, default=None,
+                        help='Path to the Excel file containing ANES textual open-ended responses.')
+    parser.add_argument('--feature_mode', type=str, default="combined",
+                        choices=['structured_only', 'text_only', 'combined'],
+                        help='Feature usage mode for ANES classification: structured_only, text_only, or combined.')
     
     args = parser.parse_args()
     
@@ -507,7 +585,9 @@ def main():
             use_bert_classifier=args.use_bert_classifier,
             bert_model_name=args.bert_model_name,
             use_oversampling=args.use_oversampling,
-            n_splits_kfold=args.n_splits_kfold
+            n_splits_kfold=args.n_splits_kfold,
+            anes_text_excel_path=args.anes_text_excel_path,
+            feature_mode=args.feature_mode
         )
         
         if "error" in results:
@@ -522,9 +602,6 @@ def main():
 
 if __name__ == "__main__":
     main()
-
-
-
 
 
 

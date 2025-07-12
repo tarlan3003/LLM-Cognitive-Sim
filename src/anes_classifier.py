@@ -71,7 +71,8 @@ class ProspectTheoryANESClassifier(nn.Module):
         num_biases: int, 
         combined_hidden_dim: int = 256, 
         num_classes: int = 2,
-        dropout_rate: float = 0.5  # Increased dropout for better regularization
+        dropout_rate: float = 0.5,
+        use_structured_features: bool = True # New parameter
     ):
         """
         Initialize the ANES classifier.
@@ -83,23 +84,26 @@ class ProspectTheoryANESClassifier(nn.Module):
             combined_hidden_dim: Hidden dimension for combined features
             num_classes: Number of target classes
             dropout_rate: Dropout rate for regularization
+            use_structured_features: Whether to use structured ANES features
         """
         super().__init__()
         
         self.anes_feature_dim = anes_feature_dim
         self.llm_hidden_dim = llm_hidden_dim
         self.num_biases = num_biases
+        self.use_structured_features = use_structured_features
         
-        # Input: anes_features + bias_scores + weighted_system_llm_rep
-        self.total_input_dim = anes_feature_dim + num_biases + llm_hidden_dim 
-        
-        # Deeper network with batch normalization and residual connections
-        self.anes_encoder = nn.Sequential(
-            nn.Linear(anes_feature_dim, 64),
-            nn.BatchNorm1d(64),
-            nn.ReLU(),
-            nn.Dropout(dropout_rate/2)
-        )
+        # Initialize components based on feature usage
+        current_combined_encoded_dim = 0
+
+        if self.use_structured_features:
+            self.anes_encoder = nn.Sequential(
+                nn.Linear(anes_feature_dim, 64),
+                nn.BatchNorm1d(64),
+                nn.ReLU(),
+                nn.Dropout(dropout_rate/2)
+            )
+            current_combined_encoded_dim += 64
         
         self.bias_encoder = nn.Sequential(
             nn.Linear(num_biases, 32),
@@ -107,6 +111,7 @@ class ProspectTheoryANESClassifier(nn.Module):
             nn.ReLU(),
             nn.Dropout(dropout_rate/2)
         )
+        current_combined_encoded_dim += 32
         
         self.llm_encoder = nn.Sequential(
             nn.Linear(llm_hidden_dim, 128),
@@ -114,12 +119,10 @@ class ProspectTheoryANESClassifier(nn.Module):
             nn.ReLU(),
             nn.Dropout(dropout_rate/2)
         )
-        
-        # Combined features dimension after separate encoders
-        combined_encoded_dim = 64 + 32 + 128
+        current_combined_encoded_dim += 128
         
         self.combiner = nn.Sequential(
-            nn.Linear(combined_encoded_dim, combined_hidden_dim),
+            nn.Linear(current_combined_encoded_dim, combined_hidden_dim),
             nn.BatchNorm1d(combined_hidden_dim),
             nn.ReLU(),
             nn.Dropout(dropout_rate),
@@ -131,11 +134,11 @@ class ProspectTheoryANESClassifier(nn.Module):
         
         self.classifier = nn.Linear(combined_hidden_dim // 2, num_classes)
         
-        print(f"Initialized ProspectTheoryANESClassifier: {self.total_input_dim} input features, {num_classes} classes")
+        print(f"Initialized ProspectTheoryANESClassifier: {current_combined_encoded_dim} combined encoded features, {num_classes} classes")
 
     def forward(
         self, 
-        anes_features: torch.Tensor, 
+        anes_features: Optional[torch.Tensor], 
         bias_scores: torch.Tensor, 
         weighted_system_rep: torch.Tensor
     ) -> torch.Tensor:
@@ -143,35 +146,40 @@ class ProspectTheoryANESClassifier(nn.Module):
         Forward pass.
         
         Args:
-            anes_features: ANES features [batch_size, anes_feature_dim]
+            anes_features: ANES features [batch_size, anes_feature_dim] or None
             bias_scores: Bias scores [batch_size, num_biases]
             weighted_system_rep: Weighted system representation [batch_size, llm_hidden_dim]
             
         Returns:
             Logits [batch_size, num_classes]
         """
-        batch_size = anes_features.shape[0]
+        batch_size = bias_scores.shape[0] # Use bias_scores for batch size
         
         # Ensure all inputs have correct dimensions
-        if len(anes_features.shape) == 1:
-            anes_features = anes_features.unsqueeze(0)
         if len(bias_scores.shape) == 1:
             bias_scores = bias_scores.unsqueeze(0)
         if len(weighted_system_rep.shape) == 1:
             weighted_system_rep = weighted_system_rep.unsqueeze(0)
         
         # Validate input dimensions
-        assert anes_features.shape[1] == self.anes_feature_dim, f"Expected ANES features dim {self.anes_feature_dim}, got {anes_features.shape[1]}"
         assert bias_scores.shape[1] == self.num_biases, f"Expected bias scores dim {self.num_biases}, got {bias_scores.shape[1]}"
         assert weighted_system_rep.shape[1] == self.llm_hidden_dim, f"Expected LLM hidden dim {self.llm_hidden_dim}, got {weighted_system_rep.shape[1]}"
         
-        # Process each feature type separately
-        anes_encoded = self.anes_encoder(anes_features)
-        bias_encoded = self.bias_encoder(bias_scores)
-        llm_encoded = self.llm_encoder(weighted_system_rep)
+        encoded_features = []
+
+        if self.use_structured_features:
+            if anes_features is None:
+                raise ValueError("anes_features cannot be None when use_structured_features is True")
+            if len(anes_features.shape) == 1:
+                anes_features = anes_features.unsqueeze(0)
+            assert anes_features.shape[1] == self.anes_feature_dim, f"Expected ANES features dim {self.anes_feature_dim}, got {anes_features.shape[1]}"
+            encoded_features.append(self.anes_encoder(anes_features))
+        
+        encoded_features.append(self.bias_encoder(bias_scores))
+        encoded_features.append(self.llm_encoder(weighted_system_rep))
         
         # Concatenate encoded features
-        combined_features = torch.cat([anes_encoded, bias_encoded, llm_encoded], dim=1)
+        combined_features = torch.cat(encoded_features, dim=1)
         
         # Process through combiner
         hidden = self.combiner(combined_features)
@@ -191,7 +199,8 @@ class ProspectTheoryANESClassifier(nn.Module):
             'state_dict': self.state_dict(),
             'anes_feature_dim': self.anes_feature_dim,
             'llm_hidden_dim': self.llm_hidden_dim,
-            'num_biases': self.num_biases
+            'num_biases': self.num_biases,
+            'use_structured_features': self.use_structured_features # Save this parameter
         }
         torch.save(save_dict, path)
         print(f"Saved ProspectTheoryANESClassifier to {path}")
@@ -216,7 +225,8 @@ class ProspectTheoryANESClassifier(nn.Module):
         model = cls(
             save_dict['anes_feature_dim'], 
             save_dict['llm_hidden_dim'], 
-            save_dict['num_biases']
+            save_dict['num_biases'],
+            use_structured_features=save_dict.get('use_structured_features', True) # Load with default True for backward compatibility
         )
         model.load_state_dict(save_dict['state_dict'])
         model = model.to(device)
@@ -228,17 +238,36 @@ class BERTANESClassifier(nn.Module):
     """
     BERT-based classifier for ANES data.
     """
-    def __init__(self, model_name: str, num_classes: int = 2, dropout_rate: float = 0.1):
+    def __init__(self, model_name: str, num_classes: int = 2, dropout_rate: float = 0.1, structured_feature_dim: int = 0):
         super().__init__()
         self.bert = AutoModel.from_pretrained(model_name)
         self.dropout = nn.Dropout(dropout_rate)
-        self.classifier = nn.Linear(self.bert.config.hidden_size, num_classes)
+        
+        self.structured_feature_dim = structured_feature_dim
+        if structured_feature_dim > 0:
+            self.structured_encoder = nn.Sequential(
+                nn.Linear(structured_feature_dim, 64),
+                nn.BatchNorm1d(64),
+                nn.ReLU(),
+                nn.Dropout(dropout_rate/2)
+            )
+            self.classifier = nn.Linear(self.bert.config.hidden_size + 64, num_classes)
+        else:
+            self.classifier = nn.Linear(self.bert.config.hidden_size, num_classes)
 
-    def forward(self, input_ids, attention_mask):
+    def forward(self, input_ids, attention_mask, structured_features: Optional[torch.Tensor] = None):
         outputs = self.bert(input_ids=input_ids, attention_mask=attention_mask)
         pooled_output = outputs.pooler_output  # Use pooled output for classification
         pooled_output = self.dropout(pooled_output)
-        logits = self.classifier(pooled_output)
+        
+        if self.structured_feature_dim > 0 and structured_features is not None:
+            if len(structured_features.shape) == 1:
+                structured_features = structured_features.unsqueeze(0)
+            encoded_structured = self.structured_encoder(structured_features)
+            combined_features = torch.cat([pooled_output, encoded_structured], dim=1)
+            logits = self.classifier(combined_features)
+        else:
+            logits = self.classifier(pooled_output)
         return logits
 
 
@@ -253,7 +282,8 @@ def train_anes_classifier(
     save_dir: str = 'models',
     focal_loss_gamma: float = 2.0,
     use_bert_classifier: bool = False, # New parameter to switch classifier type
-    bert_model_name: str = "bert-base-uncased" # Model name for BERT classifier
+    bert_model_name: str = "bert-base-uncased", # Model name for BERT classifier
+    use_structured_features: bool = True # New parameter to control structured feature usage
 ) -> Dict:
     """
     Train the ANES classifier - FIXED: Updated function signature to match usage.
@@ -270,6 +300,7 @@ def train_anes_classifier(
         focal_loss_gamma: Gamma parameter for focal loss
         use_bert_classifier: Whether to use the BERT-based classifier
         bert_model_name: Model name for the BERT classifier
+        use_structured_features: Whether to use structured ANES features for the classifier.
         
     Returns:
         Dictionary of training metrics and trained classifier
@@ -277,36 +308,49 @@ def train_anes_classifier(
     device = torch.device(device) if isinstance(device, str) else device
     
     if use_bert_classifier:
-        print(f"Initializing BERTANESClassifier with {bert_model_name}...")
-        anes_classifier = BERTANESClassifier(bert_model_name).to(device)
+        # Determine structured feature dimension for BERTANESClassifier
+        structured_feature_dim = 0
+        if use_structured_features:
+            sample_batch = next(iter(train_dataloader))
+            if 'structured_features' in sample_batch and sample_batch['structured_features'] is not None:
+                structured_feature_dim = sample_batch['structured_features'].shape[1]
+        print(f"Initializing BERTANESClassifier with {bert_model_name}, structured_feature_dim={structured_feature_dim}...")
+        anes_classifier = BERTANESClassifier(bert_model_name, structured_feature_dim=structured_feature_dim).to(device)
     else:
         # Determine dimensions from first batch for ProspectTheoryANESClassifier
         sample_batch = next(iter(train_dataloader))
         sample_texts = sample_batch['text']
-        sample_anes_features = sample_batch['anes_features']
         
+        anes_feature_dim = 0
+        if use_structured_features:
+            if 'anes_features' in sample_batch and sample_batch['anes_features'] is not None:
+                anes_feature_dim = sample_batch['anes_features'].shape[1]
+            else:
+                print("Warning: use_structured_features is True but no 'anes_features' found in batch. Setting anes_feature_dim to 0.")
+
         # Extract sample activations to determine dimensions
-        sample_activations = extractor.extract_activations(sample_texts)
-        sample_bias_scores = bias_representer.get_bias_scores(sample_activations)
-        sample_weighted_rep, _ = bias_representer.get_system_representations(sample_activations)
+        activations_for_dim = extractor.extract_activations(sample_texts)
+        sample_bias_scores = bias_representer.get_bias_scores(activations_for_dim)
+        sample_weighted_rep, _ = bias_representer.get_system_representations(activations_for_dim)
         
-        anes_feature_dim = sample_anes_features.shape[1]
         llm_hidden_dim = sample_weighted_rep.shape[1]
         num_biases = len(bias_representer.bias_names)
         
-        print(f"Initializing ProspectTheoryANESClassifier with dims: ANES={anes_feature_dim}, LLM={llm_hidden_dim}, Biases={num_biases}")
+        print(f"Initializing ProspectTheoryANESClassifier with dims: ANES={anes_feature_dim}, LLM={llm_hidden_dim}, Biases={num_biases}, use_structured_features={use_structured_features}")
         
         # Initialize classifier
         anes_classifier = ProspectTheoryANESClassifier(
             anes_feature_dim=anes_feature_dim,
             llm_hidden_dim=llm_hidden_dim,
-            num_biases=num_biases
+            num_biases=num_biases,
+            use_structured_features=use_structured_features
         ).to(device)
     
     # Calculate class weights for balanced training
     all_targets = []
     for batch in train_dataloader:
-        all_targets.append(batch['target'])
+        all_targets.append(batch['target\
+'].to(device))
     
     if all_targets:
         all_targets = torch.cat(all_targets)
@@ -355,10 +399,15 @@ def train_anes_classifier(
             if use_bert_classifier:
                 input_ids = batch['input_ids'].to(device)
                 attention_mask = batch['attention_mask'].to(device)
-                logits = anes_classifier(input_ids, attention_mask)
+                structured_features = batch.get('structured_features', None)
+                if structured_features is not None:
+                    structured_features = structured_features.to(device)
+                logits = anes_classifier(input_ids, attention_mask, structured_features)
             else:
                 texts = batch['text']
-                anes_features = batch['anes_features'].to(device)
+                anes_features = batch.get('anes_features', None)
+                if anes_features is not None:
+                    anes_features = anes_features.to(device)
                 
                 # Extract activations
                 activations = extractor.extract_activations(texts)
@@ -416,7 +465,7 @@ def train_anes_classifier(
     
     # Evaluate on validation set
     val_metrics = evaluate_anes_classifier(
-        anes_classifier, val_dataloader, extractor, bias_representer, device, use_bert_classifier
+        anes_classifier, val_dataloader, extractor, bias_representer, device, use_bert_classifier, use_structured_features
     )
     
     # Combine training and validation metrics
@@ -437,6 +486,7 @@ def evaluate_anes_classifier(
     bias_representer, 
     device: str = 'cpu',
     use_bert_classifier: bool = False,
+    use_structured_features: bool = True, # New parameter
     target_names: List[str] = None,
     thresholds: List[float] = None
 ) -> Dict:
@@ -450,6 +500,7 @@ def evaluate_anes_classifier(
         bias_representer: CognitiveBiasRepresenter instance
         device: Device to run the model on
         use_bert_classifier: Whether the classifier is BERT-based
+        use_structured_features: Whether structured features were used during training.
         target_names: Names of target classes
         thresholds: List of thresholds to evaluate
         
@@ -478,10 +529,15 @@ def evaluate_anes_classifier(
             if use_bert_classifier:
                 input_ids = batch['input_ids'].to(device)
                 attention_mask = batch['attention_mask'].to(device)
-                logits = anes_classifier(input_ids, attention_mask)
+                structured_features = batch.get('structured_features', None)
+                if structured_features is not None:
+                    structured_features = structured_features.to(device)
+                logits = anes_classifier(input_ids, attention_mask, structured_features)
             else:
                 texts = batch['text']
-                anes_features = batch['anes_features'].to(device)
+                anes_features = batch.get('anes_features', None)
+                if anes_features is not None:
+                    anes_features = anes_features.to(device)
                 
                 # Extract activations
                 activations = extractor.extract_activations(texts)
@@ -593,6 +649,8 @@ if __name__ == "__main__":
     print("- BERTANESClassifier: BERT-based classifier for direct text classification")
     print("- train_anes_classifier: Training function with proper error handling")
     print("- evaluate_anes_classifier: Comprehensive evaluation with multiple metrics")
+
+
 
 
 
