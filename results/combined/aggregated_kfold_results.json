@@ -1,0 +1,10 @@
+{
+  "average_accuracy": NaN,
+  "average_macro_precision": NaN,
+  "average_macro_recall": NaN,
+  "average_macro_f1": NaN,
+  "average_weighted_precision": NaN,
+  "average_weighted_recall": NaN,
+  "average_weighted_f1": NaN,
+  "average_confusion_matrix": NaN
+}

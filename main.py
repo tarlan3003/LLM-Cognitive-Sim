@@ -7,7 +7,6 @@ and produces the most meaningful results for the master\"s thesis on
 Prospect Theory and voting behavior.
 
 Author: Tarlan Sultanov
-Fixed by: Manus AI (with tokenizer error fix)
 """
 
 import os
@@ -109,7 +108,7 @@ def run_full_pipeline(
     bert_model_name: str = "bert-base-uncased", # New parameter
     use_oversampling: bool = False, # New parameter for oversampling
     n_splits_kfold: int = 5, # New parameter for k-fold cross-validation
-    anes_text_excel_path: Optional[str] = "/home/tsultanov/LLM-Cognitive-Sim/data/anes_timeseries_2024_redactedopenends_excel_20250430.xlsx", # New parameter for ANES textual data Excel
+    anes_text_excel_path: Optional[str] = None, # New parameter for ANES textual data Excel
     feature_mode: str = "combined" # New parameter: structured_only, text_only, combined
 ):
     """
@@ -560,48 +559,86 @@ def main():
                         help='Number of splits for k-fold cross-validation')
     parser.add_argument('--anes_text_excel_path', type=str, default=None,
                         help='Path to the Excel file containing ANES textual open-ended responses.')
-    parser.add_argument('--feature_mode', type=str, default="combined",
-                        choices=['structured_only', 'text_only', 'combined'],
-                        help='Feature usage mode for ANES classification: structured_only, text_only, or combined.')
     
     args = parser.parse_args()
     
     print("Starting Prospect Theory LLM Pipeline...")
     print(f"Arguments: {args}")
     
-    try:
-        results = run_full_pipeline(
-            anes_path=args.anes_path,
-            prospect_path=args.prospect_path,
-            model_name=args.model_name,
-            hidden_layers=BEST_HIDDEN_LAYERS,
-            batch_size=args.batch_size,
-            learning_rate=args.learning_rate,
-            num_epochs_prospect=args.num_epochs_prospect,
-            num_epochs_anes=args.num_epochs_anes,
-            seed=args.seed,
-            save_dir=args.save_dir,
-            results_dir=args.results_dir,
-            use_bert_classifier=args.use_bert_classifier,
-            bert_model_name=args.bert_model_name,
-            use_oversampling=args.use_oversampling,
-            n_splits_kfold=args.n_splits_kfold,
-            anes_text_excel_path=args.anes_text_excel_path,
-            feature_mode=args.feature_mode
-        )
-        
-        if "error" in results:
-            print(f"Pipeline failed with error: {results['error']}")
-        else:
-            print("Pipeline completed successfully!")
+    all_feature_modes = ["structured_only", "text_only", "combined"]
+    comparative_results = {}
+
+    for mode in all_feature_modes:
+        print(f"\n\n=== Running pipeline with feature_mode: {mode} ===")
+        try:
+            results = run_full_pipeline(
+                anes_path=args.anes_path,
+                prospect_path=args.prospect_path,
+                model_name=args.model_name,
+                hidden_layers=BEST_HIDDEN_LAYERS,
+                batch_size=args.batch_size,
+                learning_rate=args.learning_rate,
+                num_epochs_prospect=args.num_epochs_prospect,
+                num_epochs_anes=args.num_epochs_anes,
+                seed=args.seed,
+                save_dir=os.path.join(args.save_dir, mode), # Save models in mode-specific subdirectories
+                results_dir=os.path.join(args.results_dir, mode), # Save results in mode-specific subdirectories
+                use_bert_classifier=args.use_bert_classifier,
+                bert_model_name=args.bert_model_name,
+                use_oversampling=args.use_oversampling,
+                n_splits_kfold=args.n_splits_kfold,
+                anes_text_excel_path=args.anes_text_excel_path,
+                feature_mode=mode # Pass the current feature mode to the pipeline
+            )
+            comparative_results[mode] = results
             
-    except Exception as e:
-        print(f"Pipeline failed with exception: {e}")
-        import traceback
-        traceback.print_exc()
+            if "error" in results:
+                print(f"Pipeline for {mode} failed with error: {results['error']}")
+            else:
+                print(f"Pipeline for {mode} completed successfully!")
+                
+        except Exception as e:
+            print(f"Pipeline for {mode} failed with exception: {e}")
+            import traceback
+            traceback.print_exc()
+            comparative_results[mode] = {"error": str(e)}
+
+    print("\n\n=== Comparative Results Across Feature Modes ===")
+    # Generate a comparative report
+    report_data = []
+    for mode, metrics in comparative_results.items():
+        if "error" not in metrics:
+            report_data.append({
+                "Feature Mode": mode,
+                "Average Accuracy": f"{metrics['average_accuracy']:.4f}",
+                "Average Macro F1": f"{metrics['average_f1']:.4f}" if 'average_f1' in metrics else f"{metrics['average_macro_f1']:.4f}",
+                "Average Weighted F1": f"{metrics['average_weighted_f1']:.4f}"
+            })
+        else:
+            report_data.append({
+                "Feature Mode": mode,
+                "Average Accuracy": "N/A",
+                "Average Macro F1": "N/A",
+                "Average Weighted F1": "N/A",
+                "Error": metrics["error"]
+            })
+    
+    comparative_df = pd.DataFrame(report_data)
+    print(comparative_df.to_string(index=False))
+
+    # Save comparative report to a file
+    comparative_report_path = os.path.join(args.results_dir, "comparative_feature_mode_report.md")
+    with open(comparative_report_path, "w") as f:
+        f.write("# Comparative Results Across Feature Modes\n\n")
+        f.write(comparative_df.to_markdown(index=False))
+    print(f"Comparative report saved to {comparative_report_path}")
+
+    print("\nAll pipeline runs completed!")
 
 if __name__ == "__main__":
     main()
+
+
 
 
 
