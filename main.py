@@ -7,6 +7,7 @@ and produces the most meaningful results for the master\"s thesis on
 Prospect Theory and voting behavior.
 
 Author: Tarlan Sultanov
+Fixed by: Manus AI (with tokenizer error fix)
 """
 
 import os
@@ -23,8 +24,8 @@ from transformers import AutoTokenizer, AutoModel
 from tqdm import tqdm
 from imblearn.over_sampling import SMOTE
 from collections import Counter
+import random # Import random for fallback in SMOTE
 from typing import Optional
-
 
 # Import custom modules - FIXED: Removed src. prefix
 from src.dataset import ProspectTheoryDataset, ANESBertDataset
@@ -334,8 +335,12 @@ def run_full_pipeline(
             item = anes_dataset[i]
             X_kfold.append(item['text'])
             y_kfold.append(item['target'].item())
-            if "anes_features" in item:
-                structured_features_kfold.append(item["anes_features"].cpu().numpy())
+            if 'anes_features' in item and item['anes_features'] is not None:
+                # Convert tensor to numpy array if it's a tensor
+                if isinstance(item['anes_features'], torch.Tensor):
+                    structured_features_kfold.append(item['anes_features'].cpu().numpy())
+                else:
+                    structured_features_kfold.append(item['anes_features'])
             else:
                 structured_features_kfold.append([]) # Append empty list if no structured features
 
@@ -362,9 +367,9 @@ def run_full_pipeline(
                 sm = SMOTE(random_state=seed)
                 y_train_np = np.array(fold_train_labels)
 
-                if fold_train_structured_features and len(fold_train_structured_features[0]) > 0:
-                    # Use structured features for SMOTE if available
-                    X_smote = np.array(fold_train_structured_features)
+                if fold_train_structured_features and len(fold_train_structured_features) > 0 and len(fold_train_structured_features[0]) > 0:
+                    # Ensure all structured features are numpy arrays before stacking
+                    X_smote = np.array([np.array(f) for f in fold_train_structured_features])
                 else:
                     # Fallback to dummy features if only text or no structured features
                     X_smote = np.arange(len(fold_train_texts)).reshape(-1, 1)
@@ -377,24 +382,89 @@ def run_full_pipeline(
                 # Here, SMOTE primarily balances the labels for the training process.
                 
                 # If structured features were used for SMOTE, map them back
-                if fold_train_structured_features and len(fold_train_structured_features[0]) > 0:
+                if fold_train_structured_features and len(fold_train_structured_features) > 0 and len(fold_train_structured_features[0]) > 0:
                     resampled_structured_features = X_res.tolist()
                     # We can't easily generate synthetic text, so we'll just repeat original texts
                     # This is a limitation when using SMOTE on text-only data.
                     # For now, we'll just use the original texts and let the model handle imbalance.
                     # A more advanced approach would be to use text-specific oversampling techniques.
+                    
+                    # Find the original indices that were used to create the resampled data
+                    # This is a simplification and might not be perfectly accurate for synthetic samples
+                    original_indices_for_resampling = []
+                    # This is a placeholder. A proper SMOTE implementation for text would be more complex.
+                    # For now, we'll just duplicate texts based on the oversampled labels.
+                    # This is not ideal for text, but ensures the dataset size matches.
+                    
+                    # A more robust way: SMOTE only on structured features, then duplicate text based on indices.
+                    # If SMOTE is applied, we will resample the indices and then select texts/features based on those.
+                    # This is a common workaround when SMOTE is used on mixed data types.
+                    
+                    # Create a temporary dataset for SMOTE to get indices
+                    temp_X = np.arange(len(fold_train_texts)).reshape(-1, 1) # Dummy features for SMOTE
+                    _, y_res_temp = sm.fit_resample(temp_X, y_train_np)
+                    
+                    # Now, y_res_temp has the resampled labels. We need to create corresponding texts and features.
+                    # This means we'll be duplicating original samples based on the oversampling.
+                    
                     resampled_texts = []
-                    original_indices = sm.k_neighbors(X_smote)[1][:, 0] # Get original indices for mapping
-                    for i in range(len(X_res)):
-                        # Find the closest original sample for the synthetic sample
-                        original_idx = original_indices[i] if i < len(original_indices) else random.choice(range(len(fold_train_texts))) # Fallback for truly synthetic samples
-                        resampled_texts.append(fold_train_texts[original_idx])
+                    resampled_structured_features = []
+                    
+                    # Get the counts of each class in the resampled data
+                    resampled_counts = Counter(y_res_temp)
+                    
+                    # For each class, duplicate samples until the target count is reached
+                    for class_label in resampled_counts:
+                        original_samples_in_class = [(fold_train_texts[i], fold_train_structured_features[i]) 
+                                                     for i, label in enumerate(fold_train_labels) if label == class_label]
+                        
+                        # If no original samples for this class, skip
+                        if not original_samples_in_class:
+                            continue
+                            
+                        num_to_add = resampled_counts[class_label] - len(original_samples_in_class)
+                        
+                        # Add original samples
+                        for text, sf in original_samples_in_class:
+                            resampled_texts.append(text)
+                            resampled_structured_features.append(sf)
+                            
+                        # Duplicate existing samples to reach the target count
+                        if num_to_add > 0:
+                            # Randomly sample with replacement from original samples
+                            for _ in range(num_to_add):
+                                text, sf = random.choice(original_samples_in_class)
+                                resampled_texts.append(text)
+                                resampled_structured_features.append(sf)
 
                 else:
                     # If dummy features were used, we just repeat original texts based on resampled indices
-                    resampled_texts = [fold_train_texts[i[0]] for i in X_res]
-                    resampled_structured_features = None # No structured features if text_only
-                
+                    # This case is for when structured_features_kfold is None or empty
+                    temp_X = np.arange(len(fold_train_texts)).reshape(-1, 1) # Dummy features for SMOTE
+                    _, y_res_temp = sm.fit_resample(temp_X, y_train_np)
+                    
+                    resampled_texts = []
+                    resampled_structured_features = None # No structured features
+                    
+                    resampled_counts = Counter(y_res_temp)
+                    
+                    for class_label in resampled_counts:
+                        original_samples_in_class = [fold_train_texts[i] 
+                                                     for i, label in enumerate(fold_train_labels) if label == class_label]
+                        
+                        if not original_samples_in_class:
+                            continue
+                            
+                        num_to_add = resampled_counts[class_label] - len(original_samples_in_class)
+                        
+                        for text in original_samples_in_class:
+                            resampled_texts.append(text)
+                            
+                        if num_to_add > 0:
+                            for _ in range(num_to_add):
+                                text = random.choice(original_samples_in_class)
+                                resampled_texts.append(text)
+
                 anes_train_dataset_fold = ANESBertDataset(resampled_texts, y_res.tolist(), tokenizer, structured_features=resampled_structured_features)
                 print(f"Original train samples: {len(fold_train_texts)}, Resampled train samples: {len(resampled_texts)}")
 
@@ -464,28 +534,57 @@ def run_full_pipeline(
     all_confusion_matrices = []
     
     for fold_metrics in all_fold_metrics:
-        # Assuming we care about the best threshold found in each fold for aggregation
-        best_threshold_key = f"threshold_{fold_metrics['best_threshold']:.2f}"
-        if best_threshold_key in fold_metrics["thresholded_results"]:
-            metrics_at_best_threshold = fold_metrics["thresholded_results"][best_threshold_key]
-            all_accuracies.append(metrics_at_best_threshold["accuracy"])
-            all_macro_precisions.append(metrics_at_best_threshold["macro_precision"])
-            all_macro_recalls.append(metrics_at_best_threshold["macro_recall"])
-            all_macro_f1s.append(metrics_at_best_threshold["macro_f1"])
-            all_weighted_precisions.append(metrics_at_best_threshold["weighted_precision"])
-            all_weighted_recalls.append(metrics_at_best_threshold["weighted_recall"])
-            all_weighted_f1s.append(metrics_at_best_threshold["weighted_f1"])
-            all_confusion_matrices.append(metrics_at_best_threshold["confusion_matrix"])
-            
-    # Calculate averages
-    aggregated_metrics["average_accuracy"] = np.mean(all_accuracies)
-    aggregated_metrics["average_macro_precision"] = np.mean(all_macro_precisions)
-    aggregated_metrics["average_macro_recall"] = np.mean(all_macro_recalls)
-    aggregated_metrics["average_macro_f1"] = np.mean(all_macro_f1s)
-    aggregated_metrics["average_weighted_precision"] = np.mean(all_weighted_precisions)
-    aggregated_metrics["average_weighted_recall"] = np.mean(all_weighted_recalls)
-    aggregated_metrics["average_weighted_f1"] = np.mean(all_weighted_f1s)
-    aggregated_metrics["average_confusion_matrix"] = np.mean(all_confusion_matrices, axis=0)
+        # Ensure 'best_threshold' and 'thresholded_results' exist and are valid
+        if "best_threshold" in fold_metrics and "thresholded_results" in fold_metrics:
+            best_threshold_key = f"threshold_{fold_metrics['best_threshold']:.2f}"
+            if best_threshold_key in fold_metrics["thresholded_results"]:
+                metrics_at_best_threshold = fold_metrics["thresholded_results"][best_threshold_key]
+                
+                # Append metrics only if they are not None and are numeric
+                if metrics_at_best_threshold.get("accuracy") is not None:
+                    all_accuracies.append(metrics_at_best_threshold["accuracy"])
+                if metrics_at_best_threshold.get("macro_precision") is not None:
+                    all_macro_precisions.append(metrics_at_best_threshold["macro_precision"])
+                if metrics_at_best_threshold.get("macro_recall") is not None:
+                    all_macro_recalls.append(metrics_at_best_threshold["macro_recall"])
+                if metrics_at_best_threshold.get("macro_f1") is not None:
+                    all_macro_f1s.append(metrics_at_best_threshold["macro_f1"])
+                if metrics_at_best_threshold.get("weighted_precision") is not None:
+                    all_weighted_precisions.append(metrics_at_best_threshold["weighted_precision"])
+                if metrics_at_best_threshold.get("weighted_recall") is not None:
+                    all_weighted_recalls.append(metrics_at_best_threshold["weighted_recall"])
+                if metrics_at_best_threshold.get("weighted_f1") is not None:
+                    all_weighted_f1s.append(metrics_at_best_threshold["weighted_f1"])
+                
+                # Confusion matrix handling: ensure it's a numpy array and append
+                cm = metrics_at_best_threshold.get("confusion_matrix")
+                if cm is not None:
+                    if isinstance(cm, list): # Convert list to numpy array if needed
+                        cm = np.array(cm)
+                    if isinstance(cm, np.ndarray) and cm.ndim == 2: # Ensure it's a 2D array
+                        all_confusion_matrices.append(cm)
+
+    # Calculate averages, handling empty lists to avoid NaN from np.mean
+    aggregated_metrics["average_accuracy"] = np.mean(all_accuracies) if all_accuracies else np.nan
+    aggregated_metrics["average_macro_precision"] = np.mean(all_macro_precisions) if all_macro_precisions else np.nan
+    aggregated_metrics["average_macro_recall"] = np.mean(all_macro_recalls) if all_macro_recalls else np.nan
+    aggregated_metrics["average_macro_f1"] = np.mean(all_macro_f1s) if all_macro_f1s else np.nan
+    aggregated_metrics["average_weighted_precision"] = np.mean(all_weighted_precisions) if all_weighted_precisions else np.nan
+    aggregated_metrics["average_weighted_recall"] = np.mean(all_weighted_recalls) if all_weighted_recalls else np.nan
+    aggregated_metrics["average_weighted_f1"] = np.mean(all_weighted_f1s) if all_weighted_f1s else np.nan
+    
+    # Average confusion matrix only if there are matrices to average
+    if all_confusion_matrices:
+        # Ensure all confusion matrices have the same shape before averaging
+        # This is a robust way to handle potential shape mismatches, though ideally they should be consistent.
+        # For now, we'll just average if they are consistent.
+        if len(set(cm.shape for cm in all_confusion_matrices)) == 1:
+            aggregated_metrics["average_confusion_matrix"] = np.mean(all_confusion_matrices, axis=0)
+        else:
+            print("Warning: Confusion matrices have inconsistent shapes. Cannot compute average confusion matrix.")
+            aggregated_metrics["average_confusion_matrix"] = np.full((2,2), np.nan) # Placeholder for inconsistent shapes
+    else:
+        aggregated_metrics["average_confusion_matrix"] = np.full((2,2), np.nan) # Default to NaN if no matrices
     
     print("\nFinal Aggregated Evaluation Results (K-Fold Cross-Validation):")
     print(f"Average Accuracy: {aggregated_metrics['average_accuracy']:.4f}")
@@ -495,11 +594,11 @@ def run_full_pipeline(
     print(f"Average Weighted Precision: {aggregated_metrics['average_weighted_precision']:.4f}")
     print(f"Average Weighted Recall: {aggregated_metrics['average_weighted_recall']:.4f}")
     print(f"Average Weighted F1-Score: {aggregated_metrics['average_weighted_f1']:.4f}")
-    print("Average Confusion Matrix:\n", aggregated_metrics['average_confusion_matrix'])
-
+    print("Average Confusion Matrix:\n", aggregated_metrics["average_confusion_matrix"])
     
     # Save aggregated results
     with open(os.path.join(results_dir, "aggregated_kfold_results.json"), "w") as f:
+        # Convert numpy arrays to list for JSON serialization
         json.dump({
             k: (v.tolist() if isinstance(v, np.ndarray) else v) 
             for k, v in aggregated_metrics.items()
@@ -508,12 +607,16 @@ def run_full_pipeline(
 
     # Generate overall visualizations from aggregated data (e.g., average confusion matrix)
     try:
-        plot_confusion_matrix(
-            aggregated_metrics["average_confusion_matrix"], 
-            target_names=["Trump", "Harris"], 
-            save_path=os.path.join(results_dir, "average_confusion_matrix.png"),
-            title="Average Confusion Matrix (K-Fold)"
-        )
+        # Only plot if the average confusion matrix is not all NaNs
+        if not np.isnan(aggregated_metrics["average_confusion_matrix"]).all():
+            plot_confusion_matrix(
+                aggregated_metrics["average_confusion_matrix"], 
+                target_names=["Trump", "Harris"], 
+                save_path=os.path.join(results_dir, "average_confusion_matrix.png"),
+                title="Average Confusion Matrix (K-Fold)"
+            )
+        else:
+            print("Skipping average confusion matrix plot due to NaN values or inconsistent shapes.")
     except Exception as e:
             print(f"Error generating average confusion matrix plot: {e}")
 
@@ -570,6 +673,12 @@ def main():
 
     for mode in all_feature_modes:
         print(f"\n\n=== Running pipeline with feature_mode: {mode} ===")
+        # Ensure results_dir and save_dir are correctly set for each mode
+        mode_results_dir = os.path.join(args.results_dir, mode)
+        mode_save_dir = os.path.join(args.save_dir, mode)
+        os.makedirs(mode_results_dir, exist_ok=True)
+        os.makedirs(mode_save_dir, exist_ok=True)
+
         try:
             results = run_full_pipeline(
                 anes_path=args.anes_path,
@@ -581,8 +690,8 @@ def main():
                 num_epochs_prospect=args.num_epochs_prospect,
                 num_epochs_anes=args.num_epochs_anes,
                 seed=args.seed,
-                save_dir=os.path.join(args.save_dir, mode), # Save models in mode-specific subdirectories
-                results_dir=os.path.join(args.results_dir, mode), # Save results in mode-specific subdirectories
+                save_dir=mode_save_dir, # Save models in mode-specific subdirectories
+                results_dir=mode_results_dir, # Save results in mode-specific subdirectories
                 use_bert_classifier=args.use_bert_classifier,
                 bert_model_name=args.bert_model_name,
                 use_oversampling=args.use_oversampling,
@@ -611,7 +720,7 @@ def main():
             report_data.append({
                 "Feature Mode": mode,
                 "Average Accuracy": f"{metrics['average_accuracy']:.4f}",
-                "Average Macro F1": f"{metrics['average_f1']:.4f}" if 'average_f1' in metrics else f"{metrics['average_macro_f1']:.4f}",
+                "Average Macro F1": f"{metrics['average_macro_f1']:.4f}",
                 "Average Weighted F1": f"{metrics['average_weighted_f1']:.4f}"
             })
         else:
@@ -637,6 +746,10 @@ def main():
 
 if __name__ == "__main__":
     main()
+
+
+
+
 
 
 

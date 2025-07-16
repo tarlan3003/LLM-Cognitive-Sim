@@ -21,15 +21,15 @@ from typing import Dict, List, Tuple, Optional, Union
 
 def set_plotting_style():
     """Set consistent plotting style for all visualizations."""
-    plt.style.use('default')  # Use default style for compatibility
-    plt.rcParams['figure.figsize'] = (12, 8)
-    plt.rcParams['font.size'] = 12
-    plt.rcParams['axes.titlesize'] = 16
-    plt.rcParams['axes.labelsize'] = 14
-    plt.rcParams['xtick.labelsize'] = 12
-    plt.rcParams['ytick.labelsize'] = 12
-    plt.rcParams['legend.fontsize'] = 12
-    plt.rcParams['figure.titlesize'] = 18
+    plt.style.use("default")  # Use default style for compatibility
+    plt.rcParams["figure.figsize"] = (12, 8)
+    plt.rcParams["font.size"] = 12
+    plt.rcParams["axes.titlesize"] = 16
+    plt.rcParams["axes.labelsize"] = 14
+    plt.rcParams["xtick.labelsize"] = 12
+    plt.rcParams["ytick.labelsize"] = 12
+    plt.rcParams["legend.fontsize"] = 12
+    plt.rcParams["figure.titlesize"] = 18
 
 
 def plot_bias_scores_by_class(
@@ -79,18 +79,18 @@ def plot_bias_scores_by_class(
         offset = (i - len(target_names)/2 + 0.5) * width
         ax.bar(x + offset, means, width, label=class_name, yerr=stds, capsize=5, alpha=0.8)
     
-    ax.set_xlabel('Cognitive Biases')
-    ax.set_ylabel('Average Bias Score')
+    ax.set_xlabel("Cognitive Biases")
+    ax.set_ylabel("Average Bias Score")
     ax.set_title(title)
     ax.set_xticks(x)
-    ax.set_xticklabels(bias_names, rotation=45, ha='right')
+    ax.set_xticklabels(bias_names, rotation=45, ha="right")
     ax.legend()
     ax.grid(True, alpha=0.3)
     
     plt.tight_layout()
     
     if save_path:
-        plt.savefig(save_path, dpi=300, bbox_inches='tight')
+        plt.savefig(save_path, dpi=300, bbox_inches="tight")
         print(f"Saved bias scores plot to {save_path}")
     
     plt.show()
@@ -124,9 +124,9 @@ def plot_system_weights_distribution(
             weights = system_weights[mask, 0]  # System 1 weights
             ax1.hist(weights, bins=30, alpha=0.7, label=class_name, density=True)
     
-    ax1.set_xlabel('System 1 Weight')
-    ax1.set_ylabel('Density')
-    ax1.set_title('System 1 Weight Distribution')
+    ax1.set_xlabel("System 1 Weight")
+    ax1.set_ylabel("Density")
+    ax1.set_title("System 1 Weight Distribution")
     ax1.legend()
     ax1.grid(True, alpha=0.3)
     
@@ -137,9 +137,9 @@ def plot_system_weights_distribution(
             weights = system_weights[mask, 1]  # System 2 weights
             ax2.hist(weights, bins=30, alpha=0.7, label=class_name, density=True)
     
-    ax2.set_xlabel('System 2 Weight')
-    ax2.set_ylabel('Density')
-    ax2.set_title('System 2 Weight Distribution')
+    ax2.set_xlabel("System 2 Weight")
+    ax2.set_ylabel("Density")
+    ax2.set_title("System 2 Weight Distribution")
     ax2.legend()
     ax2.grid(True, alpha=0.3)
     
@@ -147,8 +147,7 @@ def plot_system_weights_distribution(
     plt.tight_layout()
     
     if save_path:
-        plt.savefig(save_path, dpi=300, bbox_inches='tight')
-        print(f"Saved system weights plot to {save_path}")
+        plt.savefig(save_path, dpi=300, bbox_inches="tight")
     
     plt.show()
 
@@ -172,21 +171,22 @@ def plot_confusion_matrix(
     
     fig, ax = plt.subplots(figsize=(8, 6))
     
-    # Normalize confusion matrix
-    cm_normalized = confusion_matrix.astype('float') / confusion_matrix.sum(axis=1)[:, np.newaxis]
+    # Normalize confusion matrix, handle division by zero
+    cm_sum = confusion_matrix.sum(axis=1, keepdims=True)
+    cm_normalized = np.where(cm_sum == 0, 0, confusion_matrix.astype("float") / cm_sum)
     
     # Create heatmap
-    sns.heatmap(cm_normalized, annot=True, fmt='.2f', cmap='Blues', 
+    sns.heatmap(cm_normalized, annot=True, fmt=".2f", cmap="Blues", 
                 xticklabels=target_names, yticklabels=target_names, ax=ax)
     
-    ax.set_xlabel('Predicted Label')
-    ax.set_ylabel('True Label')
+    ax.set_xlabel("Predicted Label")
+    ax.set_ylabel("True Label")
     ax.set_title(title)
     
     plt.tight_layout()
     
     if save_path:
-        plt.savefig(save_path, dpi=300, bbox_inches='tight')
+        plt.savefig(save_path, dpi=300, bbox_inches="tight")
         print(f"Saved confusion matrix to {save_path}")
     
     plt.show()
@@ -209,21 +209,21 @@ def plot_training_curves(
     
     fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(15, 6))
     
-    epochs = range(1, len(training_metrics['epoch_losses']) + 1)
+    epochs = range(1, len(training_metrics["epoch_losses"]) + 1)
     
     # Loss curve
-    ax1.plot(epochs, training_metrics['epoch_losses'], 'b-', label='Training Loss')
-    ax1.set_xlabel('Epoch')
-    ax1.set_ylabel('Loss')
-    ax1.set_title('Training Loss')
+    ax1.plot(epochs, training_metrics["epoch_losses"], "b-", label="Training Loss")
+    ax1.set_xlabel("Epoch")
+    ax1.set_ylabel("Loss")
+    ax1.set_title("Training Loss")
     ax1.grid(True, alpha=0.3)
     ax1.legend()
     
     # Accuracy curve
-    ax2.plot(epochs, training_metrics['epoch_accuracies'], 'r-', label='Training Accuracy')
-    ax2.set_xlabel('Epoch')
-    ax2.set_ylabel('Accuracy')
-    ax2.set_title('Training Accuracy')
+    ax2.plot(epochs, training_metrics["epoch_accuracies"], "r-", label="Training Accuracy")
+    ax2.set_xlabel("Epoch")
+    ax2.set_ylabel("Accuracy")
+    ax2.set_title("Training Accuracy")
     ax2.grid(True, alpha=0.3)
     ax2.legend()
     
@@ -231,7 +231,7 @@ def plot_training_curves(
     plt.tight_layout()
     
     if save_path:
-        plt.savefig(save_path, dpi=300, bbox_inches='tight')
+        plt.savefig(save_path, dpi=300, bbox_inches="tight")
         print(f"Saved training curves to {save_path}")
     
     plt.show()
@@ -260,16 +260,16 @@ def plot_bias_correlation_matrix(
     fig, ax = plt.subplots(figsize=(10, 8))
     
     # Create heatmap
-    sns.heatmap(correlation_matrix, annot=True, fmt='.2f', cmap='coolwarm', center=0,
+    sns.heatmap(correlation_matrix, annot=True, fmt=".2f", cmap="coolwarm", center=0,
                 xticklabels=bias_names, yticklabels=bias_names, ax=ax)
     
     ax.set_title(title)
-    plt.xticks(rotation=45, ha='right')
+    plt.xticks(rotation=45, ha="right")
     plt.yticks(rotation=0)
     plt.tight_layout()
     
     if save_path:
-        plt.savefig(save_path, dpi=300, bbox_inches='tight')
+        plt.savefig(save_path, dpi=300, bbox_inches="tight")
         print(f"Saved bias correlation matrix to {save_path}")
     
     plt.show()
@@ -297,15 +297,15 @@ def plot_threshold_performance(
     f1_scores = []
     
     for key, metrics in thresholded_results.items():
-        if key.startswith('threshold_') and 'accuracy' in metrics:
-            threshold = float(key.split('_')[1])
+        if key.startswith("threshold_") and "accuracy" in metrics:
+            threshold = float(key.split("_")[1])
             thresholds.append(threshold)
-            accuracies.append(metrics['accuracy'])
+            accuracies.append(metrics["accuracy"])
             
-            if 'macro_precision' in metrics:
-                precisions.append(metrics['macro_precision'])
-                recalls.append(metrics['macro_recall'])
-                f1_scores.append(metrics['macro_f1'])
+            if "macro_precision" in metrics:
+                precisions.append(metrics["macro_precision"])
+                recalls.append(metrics["macro_recall"])
+                f1_scores.append(metrics["macro_f1"])
             else:
                 precisions.append(0)
                 recalls.append(0)
@@ -321,13 +321,13 @@ def plot_threshold_performance(
     
     fig, ax = plt.subplots(figsize=(12, 8))
     
-    ax.plot(thresholds, accuracies, 'o-', label='Accuracy', linewidth=2)
-    ax.plot(thresholds, precisions, 's-', label='Precision', linewidth=2)
-    ax.plot(thresholds, recalls, '^- ', label='Recall', linewidth=2) # Fixed: Changed '^- ' to '^--'
-    ax.plot(thresholds, f1_scores, 'd-', label='F1-Score', linewidth=2)
+    ax.plot(thresholds, accuracies, "o-", label="Accuracy", linewidth=2)
+    ax.plot(thresholds, precisions, "s-", label="Precision", linewidth=2)
+    ax.plot(thresholds, recalls, "^--", label="Recall", linewidth=2) # Fixed: Changed '^- ' to '^--'
+    ax.plot(thresholds, f1_scores, "d-", label="F1-Score", linewidth=2)
     
-    ax.set_xlabel('Classification Threshold')
-    ax.set_ylabel('Performance Metric')
+    ax.set_xlabel("Classification Threshold")
+    ax.set_ylabel("Performance Metric")
     ax.set_title(title)
     ax.legend()
     ax.grid(True, alpha=0.3)
@@ -337,7 +337,7 @@ def plot_threshold_performance(
     plt.tight_layout()
     
     if save_path:
-        plt.savefig(save_path, dpi=300, bbox_inches='tight')
+        plt.savefig(save_path, dpi=300, bbox_inches="tight")
         print(f"Saved threshold performance plot to {save_path}")
     
     plt.show()
@@ -369,7 +369,7 @@ def generate_visualizations(
         use_bert_classifier: Whether the classifier is BERT-based
     """
     if target_names is None:
-        target_names = ['Trump', 'Harris']
+        target_names = ["Trump", "Harris"]
     
     print("Generating comprehensive visualizations...")
     
@@ -387,8 +387,8 @@ def generate_visualizations(
             
             with torch.no_grad():
                 for batch in val_dataloader:
-                    texts = batch['text']
-                    targets = batch['target']
+                    texts = batch["text"]
+                    targets = batch["target"]
                     
                     # Extract activations
                     activations = extractor.extract_activations(texts)
@@ -438,33 +438,33 @@ def generate_visualizations(
         print("Skipping bias and system weight visualizations for BERT classifier.")
     
     # 4. Training curves
-    if 'training_metrics' in metrics:
+    if "training_metrics" in metrics:
         try:
             plot_training_curves(
-                metrics['training_metrics'],
+                metrics["training_metrics"],
                 save_path=os.path.join(save_dir, "training_curves.png")
             )
         except Exception as e:
             print(f"Error generating training curves: {e}")
     
     # 5. Threshold performance
-    if 'thresholded_results' in metrics:
+    if "thresholded_results" in metrics:
         try:
             plot_threshold_performance(
-                metrics['thresholded_results'],
+                metrics["thresholded_results"],
                 save_path=os.path.join(save_dir, "threshold_performance.png")
             )
         except Exception as e:
             print(f"Error generating threshold performance plot: {e}")
     
     # 6. Confusion matrices for different thresholds
-    if 'thresholded_results' in metrics:
-        for threshold_key, threshold_metrics in metrics['thresholded_results'].items():
-            if 'confusion_matrix' in threshold_metrics:
+    if "thresholded_results" in metrics:
+        for threshold_key, threshold_metrics in metrics["thresholded_results"].items():
+            if "confusion_matrix" in threshold_metrics:
                 try:
-                    threshold_value = threshold_key.split('_')[1]
+                    threshold_value = threshold_key.split("_")[1]
                     plot_confusion_matrix(
-                        threshold_metrics['confusion_matrix'], target_names,
+                        threshold_metrics["confusion_matrix"], target_names,
                         save_path=os.path.join(save_dir, f"confusion_matrix_{threshold_value}.png"),
                         title=f"Confusion Matrix (Threshold = {threshold_value})"
                     )
@@ -489,6 +489,8 @@ if __name__ == "__main__":
     # Test plotting style
     set_plotting_style()
     print("Plotting style configured successfully!")
+
+
 
 
 
