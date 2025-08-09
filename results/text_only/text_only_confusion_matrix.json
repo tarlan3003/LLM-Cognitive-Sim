@@ -1,0 +1,19 @@
+{
+  "feature_mode": "text_only",
+  "best_fold": 2,
+  "best_threshold": 0.3,
+  "confusion_matrix": [
+    [
+      0,
+      236
+    ],
+    [
+      0,
+      311
+    ]
+  ],
+  "labels": [
+    "Trump",
+    "Harris"
+  ]
+}

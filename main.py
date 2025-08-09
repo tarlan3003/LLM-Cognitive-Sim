@@ -1,13 +1,10 @@
-
 """
-Main Pipeline for Prospect Theory LLM - Fixed Version with Tokenizer Fix
+Main Pipeline for Prospect Theory LLM - Final Fix for Threshold Key Mismatch
 
-This is the corrected main script that implements the best performing model
-and produces the most meaningful results for the master\"s thesis on
-Prospect Theory and voting behavior.
+This version fixes the threshold key mismatch issue causing NaN aggregation.
 
 Author: Tarlan Sultanov
-Fixed by: Manus AI (with tokenizer error fix)
+Fixed by: Manus AI (threshold key mismatch fix)
 """
 
 import os
@@ -519,7 +516,7 @@ def run_full_pipeline(
             print(f"Warning: Visualization generation failed for fold {fold+1}: {e}")
             print("Continuing without visualizations for this fold...")
             
-    # Aggregate results from all folds
+    # Aggregate results from all folds - FINAL FIX: Handle threshold key mismatch
     print("\nAggregating results from all folds...")
     aggregated_metrics = {}
     
@@ -533,28 +530,97 @@ def run_full_pipeline(
     all_weighted_f1s = []
     all_confusion_matrices = []
     
-    for fold_metrics in all_fold_metrics:
-        # Ensure 'best_threshold' and 'thresholded_results' exist and are valid
+    # FINAL FIX: Handle threshold key mismatch by using the actual best threshold value
+    for fold_idx, fold_metrics in enumerate(all_fold_metrics):
+        print(f"\nDEBUG: Processing fold {fold_idx + 1}")
+        
+        # Check if we have thresholded_results and best_threshold from evaluation
         if "best_threshold" in fold_metrics and "thresholded_results" in fold_metrics:
-            best_threshold_key = f"threshold_{fold_metrics['best_threshold']:.2f}"
-            if best_threshold_key in fold_metrics["thresholded_results"]:
-                metrics_at_best_threshold = fold_metrics["thresholded_results"][best_threshold_key]
+            best_threshold = fold_metrics["best_threshold"]
+            thresholded_results = fold_metrics["thresholded_results"]
+            
+            print(f"DEBUG: Best threshold for fold {fold_idx + 1}: {best_threshold}")
+            print(f"DEBUG: Available threshold keys: {list(thresholded_results.keys())}")
+            
+            # FINAL FIX: Try multiple possible key formats
+            possible_keys = [
+                f"threshold_{best_threshold:.2f}",  # Original format
+                f"threshold_{best_threshold}",      # Without decimal formatting
+                str(best_threshold),                # Just the threshold value
+                f"{best_threshold:.2f}",           # Threshold value with 2 decimals
+                f"{best_threshold:.1f}",           # Threshold value with 1 decimal
+            ]
+            
+            metrics_at_best_threshold = None
+            used_key = None
+            
+            # Try each possible key format
+            for key in possible_keys:
+                if key in thresholded_results:
+                    metrics_at_best_threshold = thresholded_results[key]
+                    used_key = key
+                    print(f"DEBUG: Found metrics using key: {key}")
+                    break
+            
+            # If no exact match, try to find the closest threshold
+            if metrics_at_best_threshold is None:
+                print(f"DEBUG: No exact match found, trying closest threshold...")
+                closest_key = None
+                min_diff = float('inf')
+                
+                for key in thresholded_results.keys():
+                    # Extract threshold value from key
+                    try:
+                        if key.startswith('threshold_'):
+                            threshold_val = float(key.replace('threshold_', ''))
+                        else:
+                            threshold_val = float(key)
+                        
+                        diff = abs(threshold_val - best_threshold)
+                        if diff < min_diff:
+                            min_diff = diff
+                            closest_key = key
+                    except ValueError:
+                        continue
+                
+                if closest_key:
+                    metrics_at_best_threshold = thresholded_results[closest_key]
+                    used_key = closest_key
+                    print(f"DEBUG: Using closest threshold key: {closest_key}")
+            
+            if metrics_at_best_threshold:
+                print(f"DEBUG: Successfully extracted metrics using key: {used_key}")
                 
                 # Append metrics only if they are not None and are numeric
-                if metrics_at_best_threshold.get("accuracy") is not None:
-                    all_accuracies.append(metrics_at_best_threshold["accuracy"])
-                if metrics_at_best_threshold.get("macro_precision") is not None:
-                    all_macro_precisions.append(metrics_at_best_threshold["macro_precision"])
-                if metrics_at_best_threshold.get("macro_recall") is not None:
-                    all_macro_recalls.append(metrics_at_best_threshold["macro_recall"])
-                if metrics_at_best_threshold.get("macro_f1") is not None:
-                    all_macro_f1s.append(metrics_at_best_threshold["macro_f1"])
-                if metrics_at_best_threshold.get("weighted_precision") is not None:
-                    all_weighted_precisions.append(metrics_at_best_threshold["weighted_precision"])
-                if metrics_at_best_threshold.get("weighted_recall") is not None:
-                    all_weighted_recalls.append(metrics_at_best_threshold["weighted_recall"])
-                if metrics_at_best_threshold.get("weighted_f1") is not None:
-                    all_weighted_f1s.append(metrics_at_best_threshold["weighted_f1"])
+                accuracy = metrics_at_best_threshold.get("accuracy")
+                if accuracy is not None and not np.isnan(accuracy):
+                    all_accuracies.append(accuracy)
+                    print(f"DEBUG: Added accuracy: {accuracy}")
+                    
+                macro_precision = metrics_at_best_threshold.get("macro_precision")
+                if macro_precision is not None and not np.isnan(macro_precision):
+                    all_macro_precisions.append(macro_precision)
+                    
+                macro_recall = metrics_at_best_threshold.get("macro_recall")
+                if macro_recall is not None and not np.isnan(macro_recall):
+                    all_macro_recalls.append(macro_recall)
+                    
+                macro_f1 = metrics_at_best_threshold.get("macro_f1")
+                if macro_f1 is not None and not np.isnan(macro_f1):
+                    all_macro_f1s.append(macro_f1)
+                    print(f"DEBUG: Added macro F1: {macro_f1}")
+                    
+                weighted_precision = metrics_at_best_threshold.get("weighted_precision")
+                if weighted_precision is not None and not np.isnan(weighted_precision):
+                    all_weighted_precisions.append(weighted_precision)
+                    
+                weighted_recall = metrics_at_best_threshold.get("weighted_recall")
+                if weighted_recall is not None and not np.isnan(weighted_recall):
+                    all_weighted_recalls.append(weighted_recall)
+                    
+                weighted_f1 = metrics_at_best_threshold.get("weighted_f1")
+                if weighted_f1 is not None and not np.isnan(weighted_f1):
+                    all_weighted_f1s.append(weighted_f1)
                 
                 # Confusion matrix handling: ensure it's a numpy array and append
                 cm = metrics_at_best_threshold.get("confusion_matrix")
@@ -563,6 +629,11 @@ def run_full_pipeline(
                         cm = np.array(cm)
                     if isinstance(cm, np.ndarray) and cm.ndim == 2: # Ensure it's a 2D array
                         all_confusion_matrices.append(cm)
+                        print(f"DEBUG: Added confusion matrix with shape: {cm.shape}")
+            else:
+                print(f"WARNING: Could not find metrics for fold {fold_idx + 1} with threshold {best_threshold}")
+        else:
+            print(f"WARNING: Missing 'best_threshold' or 'thresholded_results' in fold {fold_idx + 1} metrics")
 
     # Calculate averages, handling empty lists to avoid NaN from np.mean
     aggregated_metrics["average_accuracy"] = np.mean(all_accuracies) if all_accuracies else np.nan
@@ -576,8 +647,6 @@ def run_full_pipeline(
     # Average confusion matrix only if there are matrices to average
     if all_confusion_matrices:
         # Ensure all confusion matrices have the same shape before averaging
-        # This is a robust way to handle potential shape mismatches, though ideally they should be consistent.
-        # For now, we'll just average if they are consistent.
         if len(set(cm.shape for cm in all_confusion_matrices)) == 1:
             aggregated_metrics["average_confusion_matrix"] = np.mean(all_confusion_matrices, axis=0)
         else:
@@ -585,6 +654,16 @@ def run_full_pipeline(
             aggregated_metrics["average_confusion_matrix"] = np.full((2,2), np.nan) # Placeholder for inconsistent shapes
     else:
         aggregated_metrics["average_confusion_matrix"] = np.full((2,2), np.nan) # Default to NaN if no matrices
+    
+    # FINAL DEBUG: Show what was collected
+    print(f"\nFINAL DEBUG: Collected {len(all_accuracies)} accuracy values")
+    print(f"FINAL DEBUG: Collected {len(all_macro_f1s)} macro F1 values")
+    print(f"FINAL DEBUG: Collected {len(all_confusion_matrices)} confusion matrices")
+    
+    if all_accuracies:
+        print(f"FINAL DEBUG: Accuracy values: {all_accuracies}")
+    if all_macro_f1s:
+        print(f"FINAL DEBUG: Macro F1 values: {all_macro_f1s}")
     
     print("\nFinal Aggregated Evaluation Results (K-Fold Cross-Validation):")
     print(f"Average Accuracy: {aggregated_metrics['average_accuracy']:.4f}")
@@ -623,7 +702,125 @@ def run_full_pipeline(
     print(f"\nPipeline complete! Results saved to {save_dir} and {results_dir}")
     print(f"Model used: {actual_model_name}")
     
+    # Include individual fold metrics for JSON output
+    aggregated_metrics['fold_metrics'] = all_fold_metrics
+    
     return aggregated_metrics
+
+def save_best_scores_json(results, feature_mode, results_dir):
+    """
+    Extract and save the best scores and confusion matrix as JSON files.
+    
+    Args:
+        results: Dictionary containing the pipeline results
+        feature_mode: String indicating the feature mode (structured_only, text_only, combined)
+        results_dir: Directory to save the JSON files
+    """
+    if "error" in results:
+        print(f"Skipping JSON output for {feature_mode} due to error: {results['error']}")
+        return
+    
+    try:
+        # Find the best fold and threshold across all folds
+        best_overall_score = 0.0
+        best_fold_idx = 0
+        best_threshold = 0.5
+        best_fold_metrics = None
+        best_confusion_matrix = None
+        
+        # Look through all fold metrics to find the absolute best
+        if 'fold_metrics' in results:
+            for fold_idx, fold_metrics in enumerate(results['fold_metrics']):
+                if 'best_threshold' in fold_metrics and 'thresholded_results' in fold_metrics:
+                    threshold = fold_metrics['best_threshold']
+                    thresholded_results = fold_metrics['thresholded_results']
+                    
+                    # Try multiple possible key formats (same logic as in aggregation)
+                    possible_keys = [
+                        f"threshold_{threshold:.2f}",
+                        f"threshold_{threshold}",
+                        str(threshold),
+                        f"{threshold:.2f}",
+                        f"{threshold:.1f}",
+                    ]
+                    
+                    metrics_at_threshold = None
+                    for key in possible_keys:
+                        if key in thresholded_results:
+                            metrics_at_threshold = thresholded_results[key]
+                            break
+                    
+                    if metrics_at_threshold:
+                        # Use F1 score as the primary metric for "best"
+                        current_score = metrics_at_threshold.get('macro_f1', 0.0)
+                        
+                        if current_score > best_overall_score:
+                            best_overall_score = current_score
+                            best_fold_idx = fold_idx
+                            best_threshold = threshold
+                            best_fold_metrics = metrics_at_threshold
+                            best_confusion_matrix = metrics_at_threshold.get('confusion_matrix')
+        
+        # If no fold_metrics found, try to extract from aggregated results
+        if best_fold_metrics is None:
+            print(f"No fold_metrics found for {feature_mode}, using aggregated results")
+            best_fold_metrics = {
+                'accuracy': results.get('average_accuracy', 0.0),
+                'macro_precision': results.get('average_macro_precision', 0.0),
+                'macro_recall': results.get('average_macro_recall', 0.0),
+                'macro_f1': results.get('average_macro_f1', 0.0),
+                'weighted_precision': results.get('average_weighted_precision', 0.0),
+                'weighted_recall': results.get('average_weighted_recall', 0.0),
+                'weighted_f1': results.get('average_weighted_f1', 0.0)
+            }
+            best_confusion_matrix = results.get('average_confusion_matrix')
+            best_fold_idx = "aggregated"
+            best_threshold = "aggregated"
+        
+        # Prepare the best scores JSON
+        best_scores = {
+            'feature_mode': feature_mode,
+            'best_fold': best_fold_idx,
+            'best_threshold': best_threshold,
+            'best_scores': {
+                'accuracy': float(best_fold_metrics.get('accuracy', 0.0)),
+                'precision': float(best_fold_metrics.get('macro_precision', 0.0)),
+                'recall': float(best_fold_metrics.get('macro_recall', 0.0)),
+                'f1': float(best_fold_metrics.get('macro_f1', 0.0)),
+                'weighted_precision': float(best_fold_metrics.get('weighted_precision', 0.0)),
+                'weighted_recall': float(best_fold_metrics.get('weighted_recall', 0.0)),
+                'weighted_f1': float(best_fold_metrics.get('weighted_f1', 0.0))
+            }
+        }
+        
+        # Save best scores JSON
+        best_scores_path = os.path.join(results_dir, f"{feature_mode}_best_scores.json")
+        with open(best_scores_path, 'w') as f:
+            json.dump(best_scores, f, indent=2)
+        print(f"Best scores saved to {best_scores_path}")
+        
+        # Save confusion matrix JSON if available
+        if best_confusion_matrix is not None:
+            confusion_matrix_data = {
+                'feature_mode': feature_mode,
+                'best_fold': best_fold_idx,
+                'best_threshold': best_threshold,
+                'confusion_matrix': best_confusion_matrix.tolist() if hasattr(best_confusion_matrix, 'tolist') else best_confusion_matrix,
+                'labels': ['Trump', 'Harris']  # Default labels for binary classification
+            }
+            
+            confusion_matrix_path = os.path.join(results_dir, f"{feature_mode}_confusion_matrix.json")
+            with open(confusion_matrix_path, 'w') as f:
+                json.dump(confusion_matrix_data, f, indent=2)
+            print(f"Confusion matrix saved to {confusion_matrix_path}")
+        else:
+            print(f"No confusion matrix available for {feature_mode}")
+            
+    except Exception as e:
+        print(f"Error saving JSON files for {feature_mode}: {e}")
+        import traceback
+        traceback.print_exc()
+
 
 def main():
     """
@@ -705,6 +902,8 @@ def main():
                 print(f"Pipeline for {mode} failed with error: {results['error']}")
             else:
                 print(f"Pipeline for {mode} completed successfully!")
+                # Save best scores and confusion matrix as JSON files
+                save_best_scores_json(results, mode, mode_results_dir)
                 
         except Exception as e:
             print(f"Pipeline for {mode} failed with exception: {e}")
@@ -746,13 +945,4 @@ def main():
 
 if __name__ == "__main__":
     main()
-
-
-
-
-
-
-
-
-
 

@@ -1,0 +1,14 @@
+{
+  "feature_mode": "structured_only",
+  "best_fold": 2,
+  "best_threshold": 0.5,
+  "best_scores": {
+    "accuracy": 0.7605118829981719,
+    "precision": 0.756428398156384,
+    "recall": 0.7592443729903537,
+    "f1": 0.7573950874341916,
+    "weighted_precision": 0.7626786300570797,
+    "weighted_recall": 0.7605118829981719,
+    "weighted_f1": 0.7611654046486839
+  }
+}
