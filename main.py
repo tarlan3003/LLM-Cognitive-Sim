@@ -4,7 +4,6 @@ Main Pipeline for Prospect Theory LLM - Final Fix for Threshold Key Mismatch
 This version fixes the threshold key mismatch issue causing NaN aggregation.
 
 Author: Tarlan Sultanov
-Fixed by: Manus AI (threshold key mismatch fix)
 """
 
 import os
