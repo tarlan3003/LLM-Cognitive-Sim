@@ -40,7 +40,7 @@ LLM-Cognitive-Sim/
 This project uses the **ANES 2024 Time Series Study** dataset:
 - **Source**: [American National Election Studies (ANES)](https://electionstudies.org/data-center/2024-time-series-study/)
 - **Dataset**: ANES 2024 Time Series Study
-- **Format**: JSON files with structured survey responses and open-ended text
+- **Format**: Initially in csv format, after applying data pre-processing, it will be converted into json format 
 
 **Note**: ANES data requires registration and agreement to terms of use. 
 
