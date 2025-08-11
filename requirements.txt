@@ -1,0 +1,55 @@
+# Core Dependencies
+torch>=1.12.0
+torchvision>=0.13.0
+transformers>=4.20.0
+tokenizers>=0.12.0
+
+# Data Processing
+pandas>=1.4.0
+numpy>=1.21.0
+scikit-learn>=1.1.0
+scipy>=1.8.0
+imbalanced-learn>=0.9.0
+
+# Visualization
+matplotlib>=3.5.0
+seaborn>=0.11.0
+plotly>=5.8.0
+
+# Configuration and Utilities
+PyYAML>=6.0
+tqdm>=4.64.0
+wandb>=0.12.0
+tensorboard>=2.9.0
+
+# Statistical Analysis
+statsmodels>=0.13.0
+pingouin>=0.5.0
+
+# Text Processing
+nltk>=3.7
+spacy>=3.4.0
+textblob>=0.17.0
+
+# Model Interpretability
+captum>=0.5.0
+lime>=0.2.0
+shap>=0.41.0
+
+# Data Storage and I/O
+h5py>=3.7.0
+joblib>=1.1.0
+pickle5>=0.0.11
+
+# Development and Testing
+pytest>=7.1.0
+black>=22.3.0
+flake8>=4.0.0
+jupyter>=1.0.0
+ipykernel>=6.13.0
+
+# Optional: For enhanced performance
+# accelerate>=0.10.0  # For distributed training
+# deepspeed>=0.6.0    # For memory optimization
+# apex                # For mixed precision (NVIDIA only)
+
