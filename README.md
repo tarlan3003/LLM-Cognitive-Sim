@@ -93,9 +93,9 @@ jupyter notebook "prospect_theory_test/apple_silicon_cav_thinking_fast_slow.ipyn
 ## Results
 
 The framework achieves:
-- **Combined Model**: 80.26% accuracy (structured + text + cognitive biases)
-- **Structured-only**: ~75% accuracy (demographics and political attitudes)
-- **Text-only**: ~55% accuracy (open-ended responses only)
+- **Combined Model**: 80.26% accuracy at 0.45 threshold (structured + text + cognitive biases)
+- **Structured-only**: ~75% accuracy at 0.5 threshold (demographics and political attitudes)
+- **Text-only**: ~55% accuracy at 0.5 threshold (open-ended responses only)
 
 **Cognitive Bias Findings:**
 - Universal bias patterns across Trump and Harris voters
