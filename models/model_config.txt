@@ -1,0 +1,8 @@
+Model: roberta-base
+Target layers: [-1]
+Bias names: ['anchoring', 'framing', 'availability', 'confirmation_bias', 'loss_aversion']
+Target names: ['Donald Trump', 'Kamala Harris']
+ANES feature dimension: 5
+LLM hidden dimension: 768
+Number of biases: 5
+Number of classes: 2

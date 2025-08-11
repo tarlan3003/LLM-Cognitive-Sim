@@ -1,0 +1,19 @@
+{
+  "average_accuracy": 0.5482439050427682,
+  "average_macro_precision": 0.3241471105979653,
+  "average_macro_recall": 0.5001021854051991,
+  "average_macro_f1": 0.3547478422596112,
+  "average_weighted_precision": 0.3442396682869001,
+  "average_weighted_recall": 0.5482439050427682,
+  "average_weighted_f1": 0.38919630474862255,
+  "average_confusion_matrix": [
+    [
+      0.2,
+      247.0
+    ],
+    [
+      0.2,
+      299.8
+    ]
+  ]
+}

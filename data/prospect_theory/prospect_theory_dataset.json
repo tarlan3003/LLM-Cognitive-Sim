@@ -1,0 +1,1102 @@
+[
+  {
+    "text": "The survey first mentioned that the average American household spends $5,000 per year on healthcare. The respondent was told they would lose existing benefits rather than gain new ones. The respondent had recently seen news coverage of a violent crime in their neighborhood.\n\nQ: How would this framing affect the respondent's decision?",
+    "bias_labels": {
+      "anchoring": 1,
+      "framing": 0,
+      "availability": 1,
+      "confirmation_bias": 0,
+      "loss_aversion": 1
+    },
+    "system_label": 0
+  },
+  {
+    "text": "The respondent was told they would lose existing benefits rather than gain new ones.\n\nQ: How would this framing affect the respondent's decision?",
+    "bias_labels": {
+      "anchoring": 0,
+      "framing": 0,
+      "availability": 0,
+      "confirmation_bias": 0,
+      "loss_aversion": 1
+    },
+    "system_label": 1
+  },
+  {
+    "text": "When asked about the price of a new car, the respondent was first shown a luxury model priced at $80,000.\n\nQ: How would this framing affect the respondent's decision?",
+    "bias_labels": {
+      "anchoring": 1,
+      "framing": 0,
+      "availability": 0,
+      "confirmation_bias": 0,
+      "loss_aversion": 0
+    },
+    "system_label": 0
+  },
+  {
+    "text": "The respondent was told they would lose existing benefits rather than gain new ones. Before asking about inflation expectations, the interviewer mentioned that inflation was 2% last year. Having just read about a vaccine side effect, the respondent was asked about vaccine safety.\n\nQ: How would this framing affect the respondent's decision?",
+    "bias_labels": {
+      "anchoring": 1,
+      "framing": 0,
+      "availability": 1,
+      "confirmation_bias": 0,
+      "loss_aversion": 1
+    },
+    "system_label": 1
+  },
+  {
+    "text": "The candidate's position was described as 'supporting traditional values' rather than 'opposing progressive reforms'. A strong environmentalist was presented with data supporting renewable energy benefits.\n\nQ: How would this framing affect the respondent's decision?",
+    "bias_labels": {
+      "anchoring": 0,
+      "framing": 1,
+      "availability": 0,
+      "confirmation_bias": 1,
+      "loss_aversion": 0
+    },
+    "system_label": 1
+  },
+  {
+    "text": "The candidate's position was described as 'supporting traditional values' rather than 'opposing progressive reforms'.\n\nQ: How would this framing affect the respondent's decision?",
+    "bias_labels": {
+      "anchoring": 0,
+      "framing": 1,
+      "availability": 0,
+      "confirmation_bias": 0,
+      "loss_aversion": 0
+    },
+    "system_label": 1
+  },
+  {
+    "text": "The tax cut was framed as 'giving money back to taxpayers' rather than 'reducing government revenue'. The respondent was told they would lose existing benefits rather than gain new ones.\n\nQ: How would this framing affect the respondent's decision?",
+    "bias_labels": {
+      "anchoring": 0,
+      "framing": 1,
+      "availability": 0,
+      "confirmation_bias": 0,
+      "loss_aversion": 1
+    },
+    "system_label": 0
+  },
+  {
+    "text": "After a major hurricane, the respondent was asked about climate change concerns.\n\nQ: How would this framing affect the respondent's decision?",
+    "bias_labels": {
+      "anchoring": 0,
+      "framing": 0,
+      "availability": 1,
+      "confirmation_bias": 0,
+      "loss_aversion": 0
+    },
+    "system_label": 1
+  },
+  {
+    "text": "A gun rights advocate was shown statistics about defensive gun use.\n\nQ: How would this framing affect the respondent's decision?",
+    "bias_labels": {
+      "anchoring": 0,
+      "framing": 0,
+      "availability": 0,
+      "confirmation_bias": 1,
+      "loss_aversion": 0
+    },
+    "system_label": 0
+  },
+  {
+    "text": "Before asking about inflation expectations, the interviewer mentioned that inflation was 2% last year. Having just read about a vaccine side effect, the respondent was asked about vaccine safety.\n\nQ: How would this framing affect the respondent's decision?",
+    "bias_labels": {
+      "anchoring": 1,
+      "framing": 0,
+      "availability": 1,
+      "confirmation_bias": 0,
+      "loss_aversion": 0
+    },
+    "system_label": 1
+  },
+  {
+    "text": "The investment option was framed in terms of potential losses rather than potential gains. The policy was described as 'saving 200 lives' rather than 'letting 800 people die'.\n\nQ: How would this framing affect the respondent's decision?",
+    "bias_labels": {
+      "anchoring": 0,
+      "framing": 1,
+      "availability": 0,
+      "confirmation_bias": 0,
+      "loss_aversion": 1
+    },
+    "system_label": 0
+  },
+  {
+    "text": "The respondent had recently seen news coverage of a violent crime in their neighborhood.\n\nQ: How would this framing affect the respondent's decision?",
+    "bias_labels": {
+      "anchoring": 0,
+      "framing": 0,
+      "availability": 1,
+      "confirmation_bias": 0,
+      "loss_aversion": 0
+    },
+    "system_label": 1
+  },
+  {
+    "text": "A strong environmentalist was presented with data supporting renewable energy benefits.\n\nQ: How would this framing affect the respondent's decision?",
+    "bias_labels": {
+      "anchoring": 0,
+      "framing": 0,
+      "availability": 0,
+      "confirmation_bias": 1,
+      "loss_aversion": 0
+    },
+    "system_label": 1
+  },
+  {
+    "text": "The tax cut was framed as 'giving money back to taxpayers' rather than 'reducing government revenue'. The respondent had recently seen news coverage of a violent crime in their neighborhood.\n\nQ: How would this framing affect the respondent's decision?",
+    "bias_labels": {
+      "anchoring": 0,
+      "framing": 1,
+      "availability": 1,
+      "confirmation_bias": 0,
+      "loss_aversion": 0
+    },
+    "system_label": 1
+  },
+  {
+    "text": "Before asking about inflation expectations, the interviewer mentioned that inflation was 2% last year. The policy was described as 'saving 200 lives' rather than 'letting 800 people die'. The respondent had recently seen news coverage of a violent crime in their neighborhood.\n\nQ: How would this framing affect the respondent's decision?",
+    "bias_labels": {
+      "anchoring": 1,
+      "framing": 1,
+      "availability": 1,
+      "confirmation_bias": 0,
+      "loss_aversion": 0
+    },
+    "system_label": 1
+  },
+  {
+    "text": "The investment option was framed in terms of potential losses rather than potential gains. The tax cut was framed as 'giving money back to taxpayers' rather than 'reducing government revenue'.\n\nQ: How would this framing affect the respondent's decision?",
+    "bias_labels": {
+      "anchoring": 0,
+      "framing": 1,
+      "availability": 0,
+      "confirmation_bias": 0,
+      "loss_aversion": 1
+    },
+    "system_label": 1
+  },
+  {
+    "text": "The policy was described as 'saving 200 lives' rather than 'letting 800 people die'.\n\nQ: How would this framing affect the respondent's decision?",
+    "bias_labels": {
+      "anchoring": 0,
+      "framing": 1,
+      "availability": 0,
+      "confirmation_bias": 0,
+      "loss_aversion": 0
+    },
+    "system_label": 1
+  },
+  {
+    "text": "The respondent had recently seen news coverage of a violent crime in their neighborhood. Before asking about inflation expectations, the interviewer mentioned that inflation was 2% last year.\n\nQ: How would this framing affect the respondent's decision?",
+    "bias_labels": {
+      "anchoring": 1,
+      "framing": 0,
+      "availability": 1,
+      "confirmation_bias": 0,
+      "loss_aversion": 0
+    },
+    "system_label": 1
+  },
+  {
+    "text": "The tax cut was framed as 'giving money back to taxpayers' rather than 'reducing government revenue'. A gun rights advocate was shown statistics about defensive gun use.\n\nQ: How would this framing affect the respondent's decision?",
+    "bias_labels": {
+      "anchoring": 0,
+      "framing": 1,
+      "availability": 0,
+      "confirmation_bias": 1,
+      "loss_aversion": 0
+    },
+    "system_label": 1
+  },
+  {
+    "text": "The candidate's position was described as 'supporting traditional values' rather than 'opposing progressive reforms'. The investment option was framed in terms of potential losses rather than potential gains.\n\nQ: How would this framing affect the respondent's decision?",
+    "bias_labels": {
+      "anchoring": 0,
+      "framing": 1,
+      "availability": 0,
+      "confirmation_bias": 0,
+      "loss_aversion": 1
+    },
+    "system_label": 1
+  },
+  {
+    "text": "The policy was described as increasing costs rather than reducing savings. A strong environmentalist was presented with data supporting renewable energy benefits. The respondent had recently seen news coverage of a violent crime in their neighborhood.\n\nQ: How would this framing affect the respondent's decision?",
+    "bias_labels": {
+      "anchoring": 0,
+      "framing": 0,
+      "availability": 1,
+      "confirmation_bias": 1,
+      "loss_aversion": 1
+    },
+    "system_label": 1
+  },
+  {
+    "text": "The policy was described as increasing costs rather than reducing savings.\n\nQ: How would this framing affect the respondent's decision?",
+    "bias_labels": {
+      "anchoring": 0,
+      "framing": 0,
+      "availability": 0,
+      "confirmation_bias": 0,
+      "loss_aversion": 1
+    },
+    "system_label": 0
+  },
+  {
+    "text": "When asked about the price of a new car, the respondent was first shown a luxury model priced at $80,000.\n\nQ: How would this framing affect the respondent's decision?",
+    "bias_labels": {
+      "anchoring": 1,
+      "framing": 0,
+      "availability": 0,
+      "confirmation_bias": 0,
+      "loss_aversion": 0
+    },
+    "system_label": 1
+  },
+  {
+    "text": "A strong environmentalist was presented with data supporting renewable energy benefits. Before asking about inflation expectations, the interviewer mentioned that inflation was 2% last year. The tax cut was framed as 'giving money back to taxpayers' rather than 'reducing government revenue'.\n\nQ: How would this framing affect the respondent's decision?",
+    "bias_labels": {
+      "anchoring": 1,
+      "framing": 1,
+      "availability": 0,
+      "confirmation_bias": 1,
+      "loss_aversion": 0
+    },
+    "system_label": 1
+  },
+  {
+    "text": "Before asking about inflation expectations, the interviewer mentioned that inflation was 2% last year. The policy was described as increasing costs rather than reducing savings. Having just read about a vaccine side effect, the respondent was asked about vaccine safety.\n\nQ: How would this framing affect the respondent's decision?",
+    "bias_labels": {
+      "anchoring": 1,
+      "framing": 0,
+      "availability": 1,
+      "confirmation_bias": 0,
+      "loss_aversion": 1
+    },
+    "system_label": 1
+  },
+  {
+    "text": "A strong environmentalist was presented with data supporting renewable energy benefits. The policy was described as 'saving 200 lives' rather than 'letting 800 people die'.\n\nQ: How would this framing affect the respondent's decision?",
+    "bias_labels": {
+      "anchoring": 0,
+      "framing": 1,
+      "availability": 0,
+      "confirmation_bias": 1,
+      "loss_aversion": 0
+    },
+    "system_label": 1
+  },
+  {
+    "text": "The respondent had recently seen news coverage of a violent crime in their neighborhood. The candidate's position was described as 'supporting traditional values' rather than 'opposing progressive reforms'. The policy was described as increasing costs rather than reducing savings.\n\nQ: How would this framing affect the respondent's decision?",
+    "bias_labels": {
+      "anchoring": 0,
+      "framing": 1,
+      "availability": 1,
+      "confirmation_bias": 0,
+      "loss_aversion": 1
+    },
+    "system_label": 1
+  },
+  {
+    "text": "The policy was described as increasing costs rather than reducing savings. The policy was described as 'saving 200 lives' rather than 'letting 800 people die'. Before asking about inflation expectations, the interviewer mentioned that inflation was 2% last year.\n\nQ: How would this framing affect the respondent's decision?",
+    "bias_labels": {
+      "anchoring": 1,
+      "framing": 1,
+      "availability": 0,
+      "confirmation_bias": 0,
+      "loss_aversion": 1
+    },
+    "system_label": 1
+  },
+  {
+    "text": "When asked about the price of a new car, the respondent was first shown a luxury model priced at $80,000. The respondent had recently seen news coverage of a violent crime in their neighborhood. The tax cut was framed as 'giving money back to taxpayers' rather than 'reducing government revenue'.\n\nQ: How would this framing affect the respondent's decision?",
+    "bias_labels": {
+      "anchoring": 1,
+      "framing": 1,
+      "availability": 1,
+      "confirmation_bias": 0,
+      "loss_aversion": 0
+    },
+    "system_label": 1
+  },
+  {
+    "text": "The policy was described as 'saving 200 lives' rather than 'letting 800 people die'. Before asking about inflation expectations, the interviewer mentioned that inflation was 2% last year.\n\nQ: How would this framing affect the respondent's decision?",
+    "bias_labels": {
+      "anchoring": 1,
+      "framing": 1,
+      "availability": 0,
+      "confirmation_bias": 0,
+      "loss_aversion": 0
+    },
+    "system_label": 1
+  },
+  {
+    "text": "The respondent, a lifelong Republican, was shown information about economic growth under Republican presidents.\n\nQ: How would this framing affect the respondent's decision?",
+    "bias_labels": {
+      "anchoring": 0,
+      "framing": 0,
+      "availability": 0,
+      "confirmation_bias": 1,
+      "loss_aversion": 0
+    },
+    "system_label": 1
+  },
+  {
+    "text": "The tax cut was framed as 'giving money back to taxpayers' rather than 'reducing government revenue'. The investment option was framed in terms of potential losses rather than potential gains. The respondent had recently seen news coverage of a violent crime in their neighborhood.\n\nQ: How would this framing affect the respondent's decision?",
+    "bias_labels": {
+      "anchoring": 0,
+      "framing": 1,
+      "availability": 1,
+      "confirmation_bias": 0,
+      "loss_aversion": 1
+    },
+    "system_label": 0
+  },
+  {
+    "text": "A gun rights advocate was shown statistics about defensive gun use. The candidate's position was described as 'supporting traditional values' rather than 'opposing progressive reforms'. The respondent had recently seen news coverage of a violent crime in their neighborhood.\n\nQ: How would this framing affect the respondent's decision?",
+    "bias_labels": {
+      "anchoring": 0,
+      "framing": 1,
+      "availability": 1,
+      "confirmation_bias": 1,
+      "loss_aversion": 0
+    },
+    "system_label": 1
+  },
+  {
+    "text": "Having just read about a vaccine side effect, the respondent was asked about vaccine safety. A strong environmentalist was presented with data supporting renewable energy benefits.\n\nQ: How would this framing affect the respondent's decision?",
+    "bias_labels": {
+      "anchoring": 0,
+      "framing": 0,
+      "availability": 1,
+      "confirmation_bias": 1,
+      "loss_aversion": 0
+    },
+    "system_label": 0
+  },
+  {
+    "text": "The survey first mentioned that the average American household spends $5,000 per year on healthcare.\n\nQ: How would this framing affect the respondent's decision?",
+    "bias_labels": {
+      "anchoring": 1,
+      "framing": 0,
+      "availability": 0,
+      "confirmation_bias": 0,
+      "loss_aversion": 0
+    },
+    "system_label": 0
+  },
+  {
+    "text": "The policy was described as 'saving 200 lives' rather than 'letting 800 people die'. The investment option was framed in terms of potential losses rather than potential gains. Before asking about inflation expectations, the interviewer mentioned that inflation was 2% last year.\n\nQ: How would this framing affect the respondent's decision?",
+    "bias_labels": {
+      "anchoring": 1,
+      "framing": 1,
+      "availability": 0,
+      "confirmation_bias": 0,
+      "loss_aversion": 1
+    },
+    "system_label": 0
+  },
+  {
+    "text": "The survey first mentioned that the average American household spends $5,000 per year on healthcare.\n\nQ: How would this framing affect the respondent's decision?",
+    "bias_labels": {
+      "anchoring": 1,
+      "framing": 0,
+      "availability": 0,
+      "confirmation_bias": 0,
+      "loss_aversion": 0
+    },
+    "system_label": 0
+  },
+  {
+    "text": "Having just read about a vaccine side effect, the respondent was asked about vaccine safety.\n\nQ: How would this framing affect the respondent's decision?",
+    "bias_labels": {
+      "anchoring": 0,
+      "framing": 0,
+      "availability": 1,
+      "confirmation_bias": 0,
+      "loss_aversion": 0
+    },
+    "system_label": 1
+  },
+  {
+    "text": "The tax cut was framed as 'giving money back to taxpayers' rather than 'reducing government revenue'. A strong environmentalist was presented with data supporting renewable energy benefits. When asked about the price of a new car, the respondent was first shown a luxury model priced at $80,000.\n\nQ: How would this framing affect the respondent's decision?",
+    "bias_labels": {
+      "anchoring": 1,
+      "framing": 1,
+      "availability": 0,
+      "confirmation_bias": 1,
+      "loss_aversion": 0
+    },
+    "system_label": 0
+  },
+  {
+    "text": "A strong environmentalist was presented with data supporting renewable energy benefits. After a major hurricane, the respondent was asked about climate change concerns. The candidate's position was described as 'supporting traditional values' rather than 'opposing progressive reforms'.\n\nQ: How would this framing affect the respondent's decision?",
+    "bias_labels": {
+      "anchoring": 0,
+      "framing": 1,
+      "availability": 1,
+      "confirmation_bias": 1,
+      "loss_aversion": 0
+    },
+    "system_label": 0
+  },
+  {
+    "text": "Before asking about inflation expectations, the interviewer mentioned that inflation was 2% last year. The policy was described as increasing costs rather than reducing savings. The policy was described as 'saving 200 lives' rather than 'letting 800 people die'.\n\nQ: How would this framing affect the respondent's decision?",
+    "bias_labels": {
+      "anchoring": 1,
+      "framing": 1,
+      "availability": 0,
+      "confirmation_bias": 0,
+      "loss_aversion": 1
+    },
+    "system_label": 0
+  },
+  {
+    "text": "The policy was described as increasing costs rather than reducing savings.\n\nQ: How would this framing affect the respondent's decision?",
+    "bias_labels": {
+      "anchoring": 0,
+      "framing": 0,
+      "availability": 0,
+      "confirmation_bias": 0,
+      "loss_aversion": 1
+    },
+    "system_label": 0
+  },
+  {
+    "text": "After a major hurricane, the respondent was asked about climate change concerns.\n\nQ: How would this framing affect the respondent's decision?",
+    "bias_labels": {
+      "anchoring": 0,
+      "framing": 0,
+      "availability": 1,
+      "confirmation_bias": 0,
+      "loss_aversion": 0
+    },
+    "system_label": 0
+  },
+  {
+    "text": "A gun rights advocate was shown statistics about defensive gun use.\n\nQ: How would this framing affect the respondent's decision?",
+    "bias_labels": {
+      "anchoring": 0,
+      "framing": 0,
+      "availability": 0,
+      "confirmation_bias": 1,
+      "loss_aversion": 0
+    },
+    "system_label": 0
+  },
+  {
+    "text": "The respondent was told they would lose existing benefits rather than gain new ones. When asked about the price of a new car, the respondent was first shown a luxury model priced at $80,000. A strong environmentalist was presented with data supporting renewable energy benefits.\n\nQ: How would this framing affect the respondent's decision?",
+    "bias_labels": {
+      "anchoring": 1,
+      "framing": 0,
+      "availability": 0,
+      "confirmation_bias": 1,
+      "loss_aversion": 1
+    },
+    "system_label": 1
+  },
+  {
+    "text": "The respondent, a lifelong Republican, was shown information about economic growth under Republican presidents.\n\nQ: How would this framing affect the respondent's decision?",
+    "bias_labels": {
+      "anchoring": 0,
+      "framing": 0,
+      "availability": 0,
+      "confirmation_bias": 1,
+      "loss_aversion": 0
+    },
+    "system_label": 0
+  },
+  {
+    "text": "A strong environmentalist was presented with data supporting renewable energy benefits.\n\nQ: How would this framing affect the respondent's decision?",
+    "bias_labels": {
+      "anchoring": 0,
+      "framing": 0,
+      "availability": 0,
+      "confirmation_bias": 1,
+      "loss_aversion": 0
+    },
+    "system_label": 1
+  },
+  {
+    "text": "Having just read about a vaccine side effect, the respondent was asked about vaccine safety. A gun rights advocate was shown statistics about defensive gun use.\n\nQ: How would this framing affect the respondent's decision?",
+    "bias_labels": {
+      "anchoring": 0,
+      "framing": 0,
+      "availability": 1,
+      "confirmation_bias": 1,
+      "loss_aversion": 0
+    },
+    "system_label": 1
+  },
+  {
+    "text": "A strong environmentalist was presented with data supporting renewable energy benefits. The policy was described as 'saving 200 lives' rather than 'letting 800 people die'. When asked about the price of a new car, the respondent was first shown a luxury model priced at $80,000.\n\nQ: How would this framing affect the respondent's decision?",
+    "bias_labels": {
+      "anchoring": 1,
+      "framing": 1,
+      "availability": 0,
+      "confirmation_bias": 1,
+      "loss_aversion": 0
+    },
+    "system_label": 1
+  },
+  {
+    "text": "When asked about the price of a new car, the respondent was first shown a luxury model priced at $80,000. Having just read about a vaccine side effect, the respondent was asked about vaccine safety. The policy was described as increasing costs rather than reducing savings.\n\nQ: How would this framing affect the respondent's decision?",
+    "bias_labels": {
+      "anchoring": 1,
+      "framing": 0,
+      "availability": 1,
+      "confirmation_bias": 0,
+      "loss_aversion": 1
+    },
+    "system_label": 1
+  },
+  {
+    "text": "The policy was described as 'saving 200 lives' rather than 'letting 800 people die'. When asked about the price of a new car, the respondent was first shown a luxury model priced at $80,000. The respondent had recently seen news coverage of a violent crime in their neighborhood.\n\nQ: How would this framing affect the respondent's decision?",
+    "bias_labels": {
+      "anchoring": 1,
+      "framing": 1,
+      "availability": 1,
+      "confirmation_bias": 0,
+      "loss_aversion": 0
+    },
+    "system_label": 1
+  },
+  {
+    "text": "The candidate's position was described as 'supporting traditional values' rather than 'opposing progressive reforms'. The respondent, a lifelong Republican, was shown information about economic growth under Republican presidents. Before asking about inflation expectations, the interviewer mentioned that inflation was 2% last year.\n\nQ: How would this framing affect the respondent's decision?",
+    "bias_labels": {
+      "anchoring": 1,
+      "framing": 1,
+      "availability": 0,
+      "confirmation_bias": 1,
+      "loss_aversion": 0
+    },
+    "system_label": 1
+  },
+  {
+    "text": "Before asking about inflation expectations, the interviewer mentioned that inflation was 2% last year. A gun rights advocate was shown statistics about defensive gun use. Having just read about a vaccine side effect, the respondent was asked about vaccine safety.\n\nQ: How would this framing affect the respondent's decision?",
+    "bias_labels": {
+      "anchoring": 1,
+      "framing": 0,
+      "availability": 1,
+      "confirmation_bias": 1,
+      "loss_aversion": 0
+    },
+    "system_label": 1
+  },
+  {
+    "text": "The policy was described as 'saving 200 lives' rather than 'letting 800 people die'. After a major hurricane, the respondent was asked about climate change concerns.\n\nQ: How would this framing affect the respondent's decision?",
+    "bias_labels": {
+      "anchoring": 0,
+      "framing": 1,
+      "availability": 1,
+      "confirmation_bias": 0,
+      "loss_aversion": 0
+    },
+    "system_label": 1
+  },
+  {
+    "text": "The respondent had recently seen news coverage of a violent crime in their neighborhood. The respondent, a lifelong Republican, was shown information about economic growth under Republican presidents. The tax cut was framed as 'giving money back to taxpayers' rather than 'reducing government revenue'.\n\nQ: How would this framing affect the respondent's decision?",
+    "bias_labels": {
+      "anchoring": 0,
+      "framing": 1,
+      "availability": 1,
+      "confirmation_bias": 1,
+      "loss_aversion": 0
+    },
+    "system_label": 1
+  },
+  {
+    "text": "When asked about the price of a new car, the respondent was first shown a luxury model priced at $80,000. The investment option was framed in terms of potential losses rather than potential gains. After a major hurricane, the respondent was asked about climate change concerns.\n\nQ: How would this framing affect the respondent's decision?",
+    "bias_labels": {
+      "anchoring": 1,
+      "framing": 0,
+      "availability": 1,
+      "confirmation_bias": 0,
+      "loss_aversion": 1
+    },
+    "system_label": 0
+  },
+  {
+    "text": "The survey first mentioned that the average American household spends $5,000 per year on healthcare. The tax cut was framed as 'giving money back to taxpayers' rather than 'reducing government revenue'.\n\nQ: How would this framing affect the respondent's decision?",
+    "bias_labels": {
+      "anchoring": 1,
+      "framing": 1,
+      "availability": 0,
+      "confirmation_bias": 0,
+      "loss_aversion": 0
+    },
+    "system_label": 0
+  },
+  {
+    "text": "Having just read about a vaccine side effect, the respondent was asked about vaccine safety. The survey first mentioned that the average American household spends $5,000 per year on healthcare. The investment option was framed in terms of potential losses rather than potential gains.\n\nQ: How would this framing affect the respondent's decision?",
+    "bias_labels": {
+      "anchoring": 1,
+      "framing": 0,
+      "availability": 1,
+      "confirmation_bias": 0,
+      "loss_aversion": 1
+    },
+    "system_label": 0
+  },
+  {
+    "text": "The respondent had recently seen news coverage of a violent crime in their neighborhood.\n\nQ: How would this framing affect the respondent's decision?",
+    "bias_labels": {
+      "anchoring": 0,
+      "framing": 0,
+      "availability": 1,
+      "confirmation_bias": 0,
+      "loss_aversion": 0
+    },
+    "system_label": 1
+  },
+  {
+    "text": "The policy was described as increasing costs rather than reducing savings. The candidate's position was described as 'supporting traditional values' rather than 'opposing progressive reforms'. The respondent, a lifelong Republican, was shown information about economic growth under Republican presidents.\n\nQ: How would this framing affect the respondent's decision?",
+    "bias_labels": {
+      "anchoring": 0,
+      "framing": 1,
+      "availability": 0,
+      "confirmation_bias": 1,
+      "loss_aversion": 1
+    },
+    "system_label": 1
+  },
+  {
+    "text": "Having just read about a vaccine side effect, the respondent was asked about vaccine safety.\n\nQ: How would this framing affect the respondent's decision?",
+    "bias_labels": {
+      "anchoring": 0,
+      "framing": 0,
+      "availability": 1,
+      "confirmation_bias": 0,
+      "loss_aversion": 0
+    },
+    "system_label": 1
+  },
+  {
+    "text": "Before asking about inflation expectations, the interviewer mentioned that inflation was 2% last year.\n\nQ: How would this framing affect the respondent's decision?",
+    "bias_labels": {
+      "anchoring": 1,
+      "framing": 0,
+      "availability": 0,
+      "confirmation_bias": 0,
+      "loss_aversion": 0
+    },
+    "system_label": 1
+  },
+  {
+    "text": "The survey first mentioned that the average American household spends $5,000 per year on healthcare. The respondent was told they would lose existing benefits rather than gain new ones.\n\nQ: How would this framing affect the respondent's decision?",
+    "bias_labels": {
+      "anchoring": 1,
+      "framing": 0,
+      "availability": 0,
+      "confirmation_bias": 0,
+      "loss_aversion": 1
+    },
+    "system_label": 1
+  },
+  {
+    "text": "The candidate's position was described as 'supporting traditional values' rather than 'opposing progressive reforms'. A gun rights advocate was shown statistics about defensive gun use.\n\nQ: How would this framing affect the respondent's decision?",
+    "bias_labels": {
+      "anchoring": 0,
+      "framing": 1,
+      "availability": 0,
+      "confirmation_bias": 1,
+      "loss_aversion": 0
+    },
+    "system_label": 1
+  },
+  {
+    "text": "When asked about the price of a new car, the respondent was first shown a luxury model priced at $80,000.\n\nQ: How would this framing affect the respondent's decision?",
+    "bias_labels": {
+      "anchoring": 1,
+      "framing": 0,
+      "availability": 0,
+      "confirmation_bias": 0,
+      "loss_aversion": 0
+    },
+    "system_label": 1
+  },
+  {
+    "text": "The candidate's position was described as 'supporting traditional values' rather than 'opposing progressive reforms'. Before asking about inflation expectations, the interviewer mentioned that inflation was 2% last year. The respondent was told they would lose existing benefits rather than gain new ones.\n\nQ: How would this framing affect the respondent's decision?",
+    "bias_labels": {
+      "anchoring": 1,
+      "framing": 1,
+      "availability": 0,
+      "confirmation_bias": 0,
+      "loss_aversion": 1
+    },
+    "system_label": 1
+  },
+  {
+    "text": "After a major hurricane, the respondent was asked about climate change concerns.\n\nQ: How would this framing affect the respondent's decision?",
+    "bias_labels": {
+      "anchoring": 0,
+      "framing": 0,
+      "availability": 1,
+      "confirmation_bias": 0,
+      "loss_aversion": 0
+    },
+    "system_label": 1
+  },
+  {
+    "text": "The respondent had recently seen news coverage of a violent crime in their neighborhood.\n\nQ: How would this framing affect the respondent's decision?",
+    "bias_labels": {
+      "anchoring": 0,
+      "framing": 0,
+      "availability": 1,
+      "confirmation_bias": 0,
+      "loss_aversion": 0
+    },
+    "system_label": 1
+  },
+  {
+    "text": "The survey first mentioned that the average American household spends $5,000 per year on healthcare. Having just read about a vaccine side effect, the respondent was asked about vaccine safety. A gun rights advocate was shown statistics about defensive gun use.\n\nQ: How would this framing affect the respondent's decision?",
+    "bias_labels": {
+      "anchoring": 1,
+      "framing": 0,
+      "availability": 1,
+      "confirmation_bias": 1,
+      "loss_aversion": 0
+    },
+    "system_label": 0
+  },
+  {
+    "text": "The policy was described as 'saving 200 lives' rather than 'letting 800 people die'.\n\nQ: How would this framing affect the respondent's decision?",
+    "bias_labels": {
+      "anchoring": 0,
+      "framing": 1,
+      "availability": 0,
+      "confirmation_bias": 0,
+      "loss_aversion": 0
+    },
+    "system_label": 1
+  },
+  {
+    "text": "The candidate's position was described as 'supporting traditional values' rather than 'opposing progressive reforms'.\n\nQ: How would this framing affect the respondent's decision?",
+    "bias_labels": {
+      "anchoring": 0,
+      "framing": 1,
+      "availability": 0,
+      "confirmation_bias": 0,
+      "loss_aversion": 0
+    },
+    "system_label": 1
+  },
+  {
+    "text": "The policy was described as 'saving 200 lives' rather than 'letting 800 people die'. Having just read about a vaccine side effect, the respondent was asked about vaccine safety.\n\nQ: How would this framing affect the respondent's decision?",
+    "bias_labels": {
+      "anchoring": 0,
+      "framing": 1,
+      "availability": 1,
+      "confirmation_bias": 0,
+      "loss_aversion": 0
+    },
+    "system_label": 0
+  },
+  {
+    "text": "The respondent, a lifelong Republican, was shown information about economic growth under Republican presidents.\n\nQ: How would this framing affect the respondent's decision?",
+    "bias_labels": {
+      "anchoring": 0,
+      "framing": 0,
+      "availability": 0,
+      "confirmation_bias": 1,
+      "loss_aversion": 0
+    },
+    "system_label": 0
+  },
+  {
+    "text": "The respondent had recently seen news coverage of a violent crime in their neighborhood. The respondent was told they would lose existing benefits rather than gain new ones.\n\nQ: How would this framing affect the respondent's decision?",
+    "bias_labels": {
+      "anchoring": 0,
+      "framing": 0,
+      "availability": 1,
+      "confirmation_bias": 0,
+      "loss_aversion": 1
+    },
+    "system_label": 0
+  },
+  {
+    "text": "A strong environmentalist was presented with data supporting renewable energy benefits.\n\nQ: How would this framing affect the respondent's decision?",
+    "bias_labels": {
+      "anchoring": 0,
+      "framing": 0,
+      "availability": 0,
+      "confirmation_bias": 1,
+      "loss_aversion": 0
+    },
+    "system_label": 0
+  },
+  {
+    "text": "After a major hurricane, the respondent was asked about climate change concerns.\n\nQ: How would this framing affect the respondent's decision?",
+    "bias_labels": {
+      "anchoring": 0,
+      "framing": 0,
+      "availability": 1,
+      "confirmation_bias": 0,
+      "loss_aversion": 0
+    },
+    "system_label": 1
+  },
+  {
+    "text": "The respondent was told they would lose existing benefits rather than gain new ones. The respondent had recently seen news coverage of a violent crime in their neighborhood.\n\nQ: How would this framing affect the respondent's decision?",
+    "bias_labels": {
+      "anchoring": 0,
+      "framing": 0,
+      "availability": 1,
+      "confirmation_bias": 0,
+      "loss_aversion": 1
+    },
+    "system_label": 1
+  },
+  {
+    "text": "The policy was described as 'saving 200 lives' rather than 'letting 800 people die'. The respondent had recently seen news coverage of a violent crime in their neighborhood.\n\nQ: How would this framing affect the respondent's decision?",
+    "bias_labels": {
+      "anchoring": 0,
+      "framing": 1,
+      "availability": 1,
+      "confirmation_bias": 0,
+      "loss_aversion": 0
+    },
+    "system_label": 1
+  },
+  {
+    "text": "Having just read about a vaccine side effect, the respondent was asked about vaccine safety. A gun rights advocate was shown statistics about defensive gun use.\n\nQ: How would this framing affect the respondent's decision?",
+    "bias_labels": {
+      "anchoring": 0,
+      "framing": 0,
+      "availability": 1,
+      "confirmation_bias": 1,
+      "loss_aversion": 0
+    },
+    "system_label": 0
+  },
+  {
+    "text": "The candidate's position was described as 'supporting traditional values' rather than 'opposing progressive reforms'. After a major hurricane, the respondent was asked about climate change concerns. When asked about the price of a new car, the respondent was first shown a luxury model priced at $80,000.\n\nQ: How would this framing affect the respondent's decision?",
+    "bias_labels": {
+      "anchoring": 1,
+      "framing": 1,
+      "availability": 1,
+      "confirmation_bias": 0,
+      "loss_aversion": 0
+    },
+    "system_label": 1
+  },
+  {
+    "text": "The policy was described as 'saving 200 lives' rather than 'letting 800 people die'. Having just read about a vaccine side effect, the respondent was asked about vaccine safety. The policy was described as increasing costs rather than reducing savings.\n\nQ: How would this framing affect the respondent's decision?",
+    "bias_labels": {
+      "anchoring": 0,
+      "framing": 1,
+      "availability": 1,
+      "confirmation_bias": 0,
+      "loss_aversion": 1
+    },
+    "system_label": 1
+  },
+  {
+    "text": "The survey first mentioned that the average American household spends $5,000 per year on healthcare. Having just read about a vaccine side effect, the respondent was asked about vaccine safety. A strong environmentalist was presented with data supporting renewable energy benefits.\n\nQ: How would this framing affect the respondent's decision?",
+    "bias_labels": {
+      "anchoring": 1,
+      "framing": 0,
+      "availability": 1,
+      "confirmation_bias": 1,
+      "loss_aversion": 0
+    },
+    "system_label": 1
+  },
+  {
+    "text": "After a major hurricane, the respondent was asked about climate change concerns. The candidate's position was described as 'supporting traditional values' rather than 'opposing progressive reforms'. The survey first mentioned that the average American household spends $5,000 per year on healthcare.\n\nQ: How would this framing affect the respondent's decision?",
+    "bias_labels": {
+      "anchoring": 1,
+      "framing": 1,
+      "availability": 1,
+      "confirmation_bias": 0,
+      "loss_aversion": 0
+    },
+    "system_label": 1
+  },
+  {
+    "text": "The investment option was framed in terms of potential losses rather than potential gains.\n\nQ: How would this framing affect the respondent's decision?",
+    "bias_labels": {
+      "anchoring": 0,
+      "framing": 0,
+      "availability": 0,
+      "confirmation_bias": 0,
+      "loss_aversion": 1
+    },
+    "system_label": 1
+  },
+  {
+    "text": "When asked about the price of a new car, the respondent was first shown a luxury model priced at $80,000. After a major hurricane, the respondent was asked about climate change concerns. The candidate's position was described as 'supporting traditional values' rather than 'opposing progressive reforms'.\n\nQ: How would this framing affect the respondent's decision?",
+    "bias_labels": {
+      "anchoring": 1,
+      "framing": 1,
+      "availability": 1,
+      "confirmation_bias": 0,
+      "loss_aversion": 0
+    },
+    "system_label": 1
+  },
+  {
+    "text": "A strong environmentalist was presented with data supporting renewable energy benefits. The investment option was framed in terms of potential losses rather than potential gains.\n\nQ: How would this framing affect the respondent's decision?",
+    "bias_labels": {
+      "anchoring": 0,
+      "framing": 0,
+      "availability": 0,
+      "confirmation_bias": 1,
+      "loss_aversion": 1
+    },
+    "system_label": 0
+  },
+  {
+    "text": "The tax cut was framed as 'giving money back to taxpayers' rather than 'reducing government revenue'. Before asking about inflation expectations, the interviewer mentioned that inflation was 2% last year.\n\nQ: How would this framing affect the respondent's decision?",
+    "bias_labels": {
+      "anchoring": 1,
+      "framing": 1,
+      "availability": 0,
+      "confirmation_bias": 0,
+      "loss_aversion": 0
+    },
+    "system_label": 1
+  },
+  {
+    "text": "Having just read about a vaccine side effect, the respondent was asked about vaccine safety. The survey first mentioned that the average American household spends $5,000 per year on healthcare. The respondent, a lifelong Republican, was shown information about economic growth under Republican presidents.\n\nQ: How would this framing affect the respondent's decision?",
+    "bias_labels": {
+      "anchoring": 1,
+      "framing": 0,
+      "availability": 1,
+      "confirmation_bias": 1,
+      "loss_aversion": 0
+    },
+    "system_label": 1
+  },
+  {
+    "text": "When asked about the price of a new car, the respondent was first shown a luxury model priced at $80,000.\n\nQ: How would this framing affect the respondent's decision?",
+    "bias_labels": {
+      "anchoring": 1,
+      "framing": 0,
+      "availability": 0,
+      "confirmation_bias": 0,
+      "loss_aversion": 0
+    },
+    "system_label": 0
+  },
+  {
+    "text": "The policy was described as increasing costs rather than reducing savings. The survey first mentioned that the average American household spends $5,000 per year on healthcare.\n\nQ: How would this framing affect the respondent's decision?",
+    "bias_labels": {
+      "anchoring": 1,
+      "framing": 0,
+      "availability": 0,
+      "confirmation_bias": 0,
+      "loss_aversion": 1
+    },
+    "system_label": 1
+  },
+  {
+    "text": "The tax cut was framed as 'giving money back to taxpayers' rather than 'reducing government revenue'. The respondent, a lifelong Republican, was shown information about economic growth under Republican presidents. The respondent was told they would lose existing benefits rather than gain new ones.\n\nQ: How would this framing affect the respondent's decision?",
+    "bias_labels": {
+      "anchoring": 0,
+      "framing": 1,
+      "availability": 0,
+      "confirmation_bias": 1,
+      "loss_aversion": 1
+    },
+    "system_label": 1
+  },
+  {
+    "text": "The survey first mentioned that the average American household spends $5,000 per year on healthcare.\n\nQ: How would this framing affect the respondent's decision?",
+    "bias_labels": {
+      "anchoring": 1,
+      "framing": 0,
+      "availability": 0,
+      "confirmation_bias": 0,
+      "loss_aversion": 0
+    },
+    "system_label": 0
+  },
+  {
+    "text": "The investment option was framed in terms of potential losses rather than potential gains. The respondent, a lifelong Republican, was shown information about economic growth under Republican presidents. When asked about the price of a new car, the respondent was first shown a luxury model priced at $80,000.\n\nQ: How would this framing affect the respondent's decision?",
+    "bias_labels": {
+      "anchoring": 1,
+      "framing": 0,
+      "availability": 0,
+      "confirmation_bias": 1,
+      "loss_aversion": 1
+    },
+    "system_label": 1
+  },
+  {
+    "text": "The policy was described as increasing costs rather than reducing savings. Having just read about a vaccine side effect, the respondent was asked about vaccine safety.\n\nQ: How would this framing affect the respondent's decision?",
+    "bias_labels": {
+      "anchoring": 0,
+      "framing": 0,
+      "availability": 1,
+      "confirmation_bias": 0,
+      "loss_aversion": 1
+    },
+    "system_label": 1
+  },
+  {
+    "text": "A gun rights advocate was shown statistics about defensive gun use. The policy was described as increasing costs rather than reducing savings. The survey first mentioned that the average American household spends $5,000 per year on healthcare.\n\nQ: How would this framing affect the respondent's decision?",
+    "bias_labels": {
+      "anchoring": 1,
+      "framing": 0,
+      "availability": 0,
+      "confirmation_bias": 1,
+      "loss_aversion": 1
+    },
+    "system_label": 0
+  },
+  {
+    "text": "Having just read about a vaccine side effect, the respondent was asked about vaccine safety.\n\nQ: How would this framing affect the respondent's decision?",
+    "bias_labels": {
+      "anchoring": 0,
+      "framing": 0,
+      "availability": 1,
+      "confirmation_bias": 0,
+      "loss_aversion": 0
+    },
+    "system_label": 1
+  },
+  {
+    "text": "After a major hurricane, the respondent was asked about climate change concerns.\n\nQ: How would this framing affect the respondent's decision?",
+    "bias_labels": {
+      "anchoring": 0,
+      "framing": 0,
+      "availability": 1,
+      "confirmation_bias": 0,
+      "loss_aversion": 0
+    },
+    "system_label": 0
+  },
+  {
+    "text": "The tax cut was framed as 'giving money back to taxpayers' rather than 'reducing government revenue'. After a major hurricane, the respondent was asked about climate change concerns.\n\nQ: How would this framing affect the respondent's decision?",
+    "bias_labels": {
+      "anchoring": 0,
+      "framing": 1,
+      "availability": 1,
+      "confirmation_bias": 0,
+      "loss_aversion": 0
+    },
+    "system_label": 1
+  },
+  {
+    "text": "The policy was described as 'saving 200 lives' rather than 'letting 800 people die'.\n\nQ: How would this framing affect the respondent's decision?",
+    "bias_labels": {
+      "anchoring": 0,
+      "framing": 1,
+      "availability": 0,
+      "confirmation_bias": 0,
+      "loss_aversion": 0
+    },
+    "system_label": 0
+  },
+  {
+    "text": "The tax cut was framed as 'giving money back to taxpayers' rather than 'reducing government revenue'. The policy was described as increasing costs rather than reducing savings. The survey first mentioned that the average American household spends $5,000 per year on healthcare.\n\nQ: How would this framing affect the respondent's decision?",
+    "bias_labels": {
+      "anchoring": 1,
+      "framing": 1,
+      "availability": 0,
+      "confirmation_bias": 0,
+      "loss_aversion": 1
+    },
+    "system_label": 1
+  }
+]
